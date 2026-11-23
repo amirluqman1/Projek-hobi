@@ -1,0 +1,610 @@
+<!doctype html>
+<!--
+=====================================================================
+ Bengkel Senja : demo pertama projek game kapcai Melaka
+ Buka terus dalam browser (perlu internet untuk three.js & font).
+
+ Apa yang demo ni tunjuk:
+   - Dunia gaya PS2: tekstur kecil dijana kod, cahaya "dicat" dalam
+     bucu (vertex colors), kabus/jerebu, bayang bulat palsu
+   - Kenderaan "hero asset": material berkilat (PBR + clearcoat)
+     yang pantul langit (environment map)
+   - Kitaran masa: satu jadual (TIMES) tukar langit, kabus, cahaya,
+     lampu jalan dan papan tanda sekali gus
+
+ Susunan skrip (cari tajuk "// ------" dalam kod):
+   renderer/scene -> helpers -> tekstur PS2 -> langit -> dunia
+   (jalan, kedai, tiang elektrik, lampu, kelapa) -> environment map
+   -> material HERO vs PS2 -> buildCar() -> buildKapcai()
+   -> applyStyle/Paint/Finish/Rim/Vehicle -> TIMES & applyTime()
+   -> kamera orbit -> UI -> game loop (frame)
+
+ Model kenderaan dibina guna bentuk asas dalam kod. Versi game
+ sebenar patut guna model dari Blender (.glb).
+=====================================================================
+-->
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bengkel Senja</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Figtree:wght@400;600&display=swap">
+<style>
+[hidden]{display:none!important;}
+/* Layout: full-bleed 3D street, a garage spec-sheet panel docked right (desktop) or as a bottom sheet (phone); single dusk-garage look */
+:root{
+  --asphalt:#14161b;
+  --panel:rgba(18,20,26,.86);
+  --line:rgba(255,214,160,.16);
+  --text:#f3eee6;
+  --muted:#b9b0a2;
+  --signal:#ff9a3c;      /* lampu jalan / senja */
+  --signal-ink:#1a1208;
+  --font-display:"Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+  --font-ui:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--asphalt);color:var(--text);font-family:var(--font-ui);}
+body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webkit-tap-highlight-color:transparent;}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
+#view:active{cursor:grabbing;}
+
+.title{position:fixed;top:calc(14px + var(--sat));left:calc(16px + var(--sal));z-index:2;pointer-events:none;display:grid;gap:2px;text-shadow:0 2px 10px rgba(0,0,0,.55);}
+.title h1{margin:0;font-family:var(--font-display);font-weight:700;font-size:clamp(24px,3.4vw,34px);letter-spacing:.04em;text-transform:uppercase;line-height:1;}
+.title h1 span{color:var(--signal);}
+.title p{margin:0;font-size:12.5px;color:var(--text);opacity:.85;}
+
+.panel{position:fixed;z-index:3;top:calc(14px + var(--sat));right:calc(14px + var(--sar));bottom:calc(14px + var(--sab));width:300px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:16px;display:flex;flex-direction:column;gap:16px;}
+.group{display:grid;gap:8px;}
+.label{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}
+.label b{color:var(--text);font-weight:600;letter-spacing:.04em;text-transform:none;font-family:var(--font-ui);font-size:12px;}
+.seg{display:flex;gap:4px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:3px;}
+.seg button{flex:1;min-width:0;font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.03em;color:var(--muted);background:transparent;border:0;border-radius:7px;padding:8px 6px;cursor:pointer;}
+.seg button[aria-pressed="true"]{background:var(--signal);color:var(--signal-ink);}
+.seg button:focus-visible,.sw:focus-visible{outline:2px solid var(--signal);outline-offset:2px;}
+.swatches{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;}
+.sw{aspect-ratio:1;max-width:100%;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer;padding:0;box-shadow:inset 0 -4px 6px rgba(0,0,0,.35),inset 0 3px 4px rgba(255,255,255,.25);}
+.sw[aria-pressed="true"]{border-color:var(--signal);box-shadow:0 0 0 2px var(--signal),inset 0 -4px 6px rgba(0,0,0,.35),inset 0 3px 4px rgba(255,255,255,.25);}
+.note{font-size:12.5px;line-height:1.5;color:var(--muted);margin:0;}
+.note strong{color:var(--text);font-weight:600;}
+.stats{margin-top:auto;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:4px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.stats b{color:var(--text);font-family:var(--font-display);font-size:14px;}
+.hint{position:fixed;left:calc(16px + var(--sal));bottom:calc(14px + var(--sab));z-index:2;font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;pointer-events:none;}
+
+@media (max-width:760px){
+  .panel{top:auto;left:calc(10px + var(--sal));right:calc(10px + var(--sar));bottom:calc(10px + var(--sab));width:auto;max-height:44%;padding:14px;gap:14px;}
+  .hint{display:none;}
+  .title p{max-width:70vw;}
+}
+@media (prefers-reduced-motion:reduce){ .seg button{transition:none;} }
+</style>
+
+</head>
+<body>
+<canvas id="view" aria-label="Paparan 3D bengkel dan kenderaan"></canvas>
+
+<div class="title">
+  <h1>Bengkel <span>Senja</span></h1>
+  <p>Dunia gaya PS2 · kenderaan hero berkilat · Jalan Pantai, Melaka (rekaan)</p>
+</div>
+
+<aside class="panel" aria-label="Ubah suai kenderaan">
+  <div class="group">
+    <div class="label">Kenderaan</div>
+    <div class="seg" id="segVehicle">
+      <button type="button" data-v="kapcai" aria-pressed="true">Kapcai</button>
+      <button type="button" data-v="car" aria-pressed="false">Kereta</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Warna cat <b id="paintName">Merah Cili</b></div>
+    <div class="swatches" id="swatches"></div>
+  </div>
+  <div class="group">
+    <div class="label">Kemasan</div>
+    <div class="seg" id="segFinish">
+      <button type="button" data-v="gloss" aria-pressed="true">Berkilat</button>
+      <button type="button" data-v="metal" aria-pressed="false">Metalik</button>
+      <button type="button" data-v="matte" aria-pressed="false">Matte</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Rim</div>
+    <div class="seg" id="segRim">
+      <button type="button" data-v="chrome" aria-pressed="true">Chrome</button>
+      <button type="button" data-v="black" aria-pressed="false">Hitam</button>
+      <button type="button" data-v="gold" aria-pressed="false">Emas</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Waktu</div>
+    <div class="seg" id="segTime">
+      <button type="button" data-v="noon" aria-pressed="false">Tengah hari</button>
+      <button type="button" data-v="dusk" aria-pressed="true">Senja</button>
+      <button type="button" data-v="night" aria-pressed="false">Malam</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">Material kenderaan</div>
+    <div class="seg" id="segStyle">
+      <button type="button" data-v="hero" aria-pressed="true">Hero berkilat</button>
+      <button type="button" data-v="ps2" aria-pressed="false">PS2 rata</button>
+    </div>
+    <p class="note" id="styleNote"></p>
+  </div>
+  <div class="stats" aria-live="polite">
+    <div>Kenderaan: <b id="triVehicle">0</b> segi tiga</div>
+    <div>Seluruh dunia: <b id="triWorld">0</b> segi tiga</div>
+    <div>Bayang bawah kenderaan ialah gambar bulat gelap, bukan bayang sebenar. Trik zaman PS2.</div>
+  </div>
+</aside>
+
+<div class="hint">Seret untuk pusing · roda atau cubit untuk zum</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+if(!window.THREE){ document.querySelector('.title p').textContent='Enjin 3D tak dapat dimuatkan. Semak internet dan muat semula.'; return; }
+
+function start(hot){
+hot = hot || {};
+const state = Object.assign({vehicle:'kapcai', paint:0, finish:'gloss', rim:'chrome', time:'dusk', style:'hero', yaw:0.9, pitch:0.28, dist:4.2}, hot);
+
+// ---------------- renderer / scene ----------------
+const canvas=document.getElementById('view');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(innerWidth,innerHeight,false);
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0xe49a62,25,130);
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.05,1200);
+const world=new THREE.Group(); scene.add(world);
+
+const hemi=new THREE.HemisphereLight(0xffd2a8,0x5a4636,0.7); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffb27a,1.1); scene.add(sun); scene.add(sun.target);
+
+// ---------------- helpers ----------------
+const rand=(function(){let a=7;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};})();
+function canvasTex(w,h,draw,rep){
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'); draw(g,w,h);
+  const t=new THREE.CanvasTexture(c); if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;} t.anisotropy=2; return t;
+}
+function noise(g,w,h,base,amt){
+  g.fillStyle=base; g.fillRect(0,0,w,h);
+  const d=g.getImageData(0,0,w,h); for(let i=0;i<d.data.length;i+=4){const n=(rand()-.5)*amt; d.data[i]+=n; d.data[i+1]+=n; d.data[i+2]+=n;} g.putImageData(d,0,0);
+}
+// fake "baked" lighting: darken bottoms of boxes via vertex colours (cahaya dicat dalam bucu)
+function bakeAO(geo,minY,maxY,low){
+  const p=geo.attributes.position, col=new Float32Array(p.count*3);
+  for(let i=0;i<p.count;i++){const t=Math.min(1,Math.max(0,(p.getY(i)-minY)/(maxY-minY))); const v=low+(1-low)*Math.sqrt(t); col[i*3]=v;col[i*3+1]=v;col[i*3+2]=v;}
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); return geo;
+}
+function lambert(opts){ return new THREE.MeshLambertMaterial(opts); }
+
+// ---------------- PS2 textures (kecil, dijana kod) ----------------
+const texAsphalt=canvasTex(64,64,(g,w,h)=>{noise(g,w,h,'#4a4a50',26); g.fillStyle='rgba(20,20,24,.12)'; g.fillRect(10,30,22,14);},true);
+texAsphalt.repeat.set(60,2);
+const texWalk=canvasTex(64,64,(g,w,h)=>{noise(g,w,h,'#9b6a5a',22); g.strokeStyle='rgba(40,25,20,.45)'; g.lineWidth=2; for(let i=0;i<=64;i+=16){g.beginPath();g.moveTo(i,0);g.lineTo(i,64);g.stroke();g.beginPath();g.moveTo(0,i);g.lineTo(64,i);g.stroke();}},true);
+texWalk.repeat.set(120,1);
+const texKerb=canvasTex(64,8,(g)=>{g.fillStyle='#1b1b1d';g.fillRect(0,0,32,8);g.fillStyle='#eeeeea';g.fillRect(32,0,32,8);},true);
+texKerb.repeat.set(150,1);
+const texSand=canvasTex(64,64,(g,w,h)=>noise(g,w,h,'#d8bf8c',28),true); texSand.repeat.set(60,4);
+const texRoof=canvasTex(32,32,(g)=>{g.fillStyle='#9e4f37';g.fillRect(0,0,32,32);g.fillStyle='#7d3b29';for(let y=0;y<32;y+=6)g.fillRect(0,y,32,2);},true);
+const texPlate=canvasTex(128,32,(g)=>{g.fillStyle='#0d0d0f';g.fillRect(0,0,128,32);g.strokeStyle='#d8d8d8';g.lineWidth=2;g.strokeRect(2,2,124,28);g.fillStyle='#f4f4f4';g.font='bold 20px Arial, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('MBS 2026',64,17);});
+
+const SHOP_COLS=['#e7c27a','#8fc3b4','#e29a8a','#a9b9e0','#f0d9a6','#c4d79a','#e4a95f','#b79ccc','#9ccbd9','#e8b8c8'];
+function shopFrontTex(wall){
+  return canvasTex(128,128,(g)=>{
+    noise(g,128,128,wall,18);
+    // tingkap tingkat atas (shutter kayu)
+    for(const x of [18,74]){ g.fillStyle='#3a2a1f'; g.fillRect(x-2,14,40,44); g.fillStyle='#6d4a2f'; g.fillRect(x,16,17,40); g.fillRect(x+19,16,17,40); g.fillStyle='rgba(0,0,0,.25)'; for(let y=20;y<56;y+=5){g.fillRect(x,y,36,1);} }
+    // jalur papan tanda
+    g.fillStyle='rgba(0,0,0,.25)'; g.fillRect(0,66,128,14);
+    // kaki lima: bukaan gelap + tiang
+    g.fillStyle='#231d19'; g.fillRect(0,80,128,48);
+    g.fillStyle=wall; g.fillRect(0,80,10,48); g.fillRect(118,80,10,48);
+    g.fillStyle='rgba(255,200,120,.10)'; g.fillRect(14,92,100,36);
+  });
+}
+const texWallPlain=canvasTex(32,32,(g,w,h)=>noise(g,w,h,'#d8cbb4',14),true);
+function signTex(text,bg,fg){
+  return canvasTex(256,40,(g)=>{g.fillStyle=bg;g.fillRect(0,0,256,40);g.fillStyle=fg;g.font='900 22px "Arial Black", Impact, Arial, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,21);g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=3;g.strokeRect(1.5,1.5,253,37);});
+}
+
+// ---------------- sky (vertex-coloured dome) ----------------
+const skyGeo=new THREE.SphereGeometry(600,24,14);
+const skyMat=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false});
+skyGeo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(skyGeo.attributes.position.count*3),3));
+const sky=new THREE.Mesh(skyGeo,skyMat); scene.add(sky);
+function paintSky(geo,top,hor,gnd){
+  const p=geo.attributes.position,c=geo.attributes.color,ct=new THREE.Color(top),ch=new THREE.Color(hor),cg=new THREE.Color(gnd),tmp=new THREE.Color();
+  for(let i=0;i<p.count;i++){const t=p.getY(i)/600; if(t>=0){tmp.copy(ch).lerp(ct,Math.min(1,Math.pow(t,0.6)*1.25));} else tmp.copy(ch).lerp(cg,Math.min(1,-t*5)); c.setXYZ(i,tmp.r,tmp.g,tmp.b);}
+  c.needsUpdate=true;
+}
+function glowTex(inner,outer){return canvasTex(64,64,(g)=>{const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,inner);gr.addColorStop(.35,outer);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);});}
+const sunSprite=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,250,230,1)','rgba(255,190,120,.55)'),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,fog:false}));
+sunSprite.scale.setScalar(120); scene.add(sunSprite);
+const lampGlowTex=glowTex('rgba(255,236,190,1)','rgba(255,160,60,.5)');
+const glowMat=new THREE.SpriteMaterial({map:lampGlowTex,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false});
+const poolTex=glowTex('rgba(255,190,110,.55)','rgba(255,150,60,.18)');
+const poolMat=new THREE.MeshBasicMaterial({map:poolTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0});
+
+// ---------------- world: jalan pantai ----------------
+const L=320;
+function addMesh(geo,mat,x,y,z,parent){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);(parent||world).add(m);return m;}
+// jalan (z -3.6..3.6)
+addMesh(new THREE.PlaneGeometry(L,7.2).rotateX(-Math.PI/2),lambert({map:texAsphalt}),0,0,0);
+// garisan putus tengah & garisan tepi
+const lineMat=lambert({color:0xe9e6dc});
+for(let x=-L/2;x<L/2;x+=6) addMesh(new THREE.PlaneGeometry(3,0.14).rotateX(-Math.PI/2),lineMat,x+1.5,0.012,0);
+addMesh(new THREE.PlaneGeometry(L,0.12).rotateX(-Math.PI/2),lineMat,0,0.012,-3.25);
+addMesh(new THREE.PlaneGeometry(L,0.12).rotateX(-Math.PI/2),lineMat,0,0.012,3.25);
+// bahu jalan hitam-putih (kerb)
+const kerbMat=lambert({map:texKerb});
+addMesh(new THREE.BoxGeometry(L,0.18,0.25),kerbMat,0,0.09,-3.72);
+addMesh(new THREE.BoxGeometry(L,0.18,0.25),kerbMat,0,0.09,3.72);
+// kaki lima
+const walkMat=lambert({map:texWalk});
+addMesh(new THREE.BoxGeometry(L,0.18,2.4),walkMat,0,0.09,-5.05);
+addMesh(new THREE.BoxGeometry(L,0.18,2.0),walkMat,0,0.09,4.85);
+// tembok laut + pasir + laut
+addMesh(bakeAO(new THREE.BoxGeometry(L,0.7,0.35),0,0.7,0.6),lambert({color:0xe8e2d4,vertexColors:true}),0,0.35,6.0);
+addMesh(new THREE.PlaneGeometry(L,12).rotateX(-Math.PI/2),lambert({map:texSand}),0,-0.12,12.1);
+const seaMat=lambert({color:0x3f7f96});
+const sea=addMesh(new THREE.PlaneGeometry(2400,1200).rotateX(-Math.PI/2),seaMat,0,-0.3,618);
+// tanah belakang kedai + bukit jauh
+addMesh(new THREE.PlaneGeometry(L,80).rotateX(-Math.PI/2),lambert({color:0x6b7a44}),0,-0.02,-46);
+const hillMat=lambert({color:0x56703f});
+for(let i=0;i<14;i++){const h=12+rand()*20; addMesh(new THREE.ConeGeometry(18+rand()*20,h,6),hillMat,-160+i*25+rand()*10,h/2-2,-75-rand()*40);}
+
+// rumah kedai (sebelah z<0)
+const shopNames=[['CENDOL GULA MELAKA','#2f6b3a','#fff3c4'],['KEDAI RUNCIT MAJU','#1d4f8f','#ffffff'],['TAYAR & SPORT RIM','#111111','#ffcc33'],['BENGKEL JAYA MOTOR','#c3241f','#ffffff'],['KEDAI MAKAN SINAR','#f1c232','#3a1a00'],['SATAY CELUP','#7a1f6b','#ffffff'],['CAT & SPRAY','#204a5c','#ffffff'],['KEDAI GUNTING','#e8e2d4','#1a1a1a'],['AIS KACANG','#d9534f','#ffffff'],['SERBANEKA 24 JAM','#0f6e6e','#ffffff']];
+const roofMat=lambert({map:texRoof});
+const signMats=[];
+const SHOP_W=6.4;
+shopNames.forEach((s,i)=>{
+  const x=(i-3)*SHOP_W; // kedai ke-3 (BENGKEL) betul-betul belakang kenderaan
+  const h=7+((i*37)%5)*0.35, d=10;
+  const wall=SHOP_COLS[i%SHOP_COLS.length];
+  const front=lambert({map:shopFrontTex(wall),vertexColors:true});
+  const side=lambert({map:texWallPlain,color:wall,vertexColors:true});
+  const geo=bakeAO(new THREE.BoxGeometry(SHOP_W-0.06,h,d),-h/2,h/2,0.62);
+  const m=new THREE.Mesh(geo,[side,side,roofMat,side,front,side]); m.position.set(x,h/2+0.18,-6.25-d/2); world.add(m);
+  // papan tanda (emissive pada waktu malam)
+  const st=signTex(s[0],s[1],s[2]);
+  const sm=new THREE.MeshLambertMaterial({map:st,emissive:0xffffff,emissiveMap:st,emissiveIntensity:0.1});
+  signMats.push(sm);
+  const sign=new THREE.Mesh(new THREE.BoxGeometry(SHOP_W-0.6,0.8,0.08),sm); sign.position.set(x,h*0.43+0.4,-6.2); world.add(sign);
+  // anjung kaki lima
+  addMesh(new THREE.BoxGeometry(SHOP_W,0.12,1.3),lambert({color:0x8a4a35}),x,h*0.37,-5.65);
+});
+// tayar bertimbun & tong minyak depan bengkel
+const tyreMat=lambert({color:0x1c1c1e});
+for(let s=0;s<3;s++)for(let k=0;k<4-s;k++) addMesh(new THREE.TorusGeometry(0.28,0.11,6,12).rotateX(Math.PI/2),tyreMat,-1.9-s*0.65,0.29+k*0.21,-4.6);
+addMesh(bakeAO(new THREE.CylinderGeometry(0.3,0.3,0.9,10),-0.45,0.45,0.55),lambert({color:0x2b5ea8,vertexColors:true}),2.3,0.63,-4.5);
+
+// tiang elektrik + wayar (kaki lima z<0)
+const poleMat=lambert({color:0x9a958c}), wireMat=new THREE.LineBasicMaterial({color:0x18181a});
+const poleXs=[]; for(let x=-140;x<=140;x+=26) poleXs.push(x+5);
+poleXs.forEach(x=>{ addMesh(new THREE.CylinderGeometry(0.09,0.13,8,6),poleMat,x,4.1,-4.4); addMesh(new THREE.BoxGeometry(0.1,0.1,1.2),poleMat,x,7.6,-4.4); });
+for(let i=0;i<poleXs.length-1;i++){ for(const dz of [-0.5,0,0.5]){ const pts=[]; for(let t=0;t<=12;t++){const u=t/12; pts.push(new THREE.Vector3(poleXs[i]+(poleXs[i+1]-poleXs[i])*u,7.65-0.9*(1-Math.pow(2*u-1,2)),-4.4+dz));} world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),wireMat)); } }
+
+// lampu jalan (kaki lima z>0) dengan lengan ke jalan
+const lampHeadMat=new THREE.MeshLambertMaterial({color:0x333333,emissive:0xffc070,emissiveIntensity:0});
+const lampGlows=[], lampPools=[];
+for(let x=-135;x<=135;x+=18){
+  addMesh(new THREE.CylinderGeometry(0.07,0.1,6.6,6),poleMat,x,3.3,4.5);
+  addMesh(new THREE.BoxGeometry(0.08,0.08,1.9),poleMat,x,6.55,3.6);
+  addMesh(new THREE.BoxGeometry(0.5,0.12,0.28),lampHeadMat,x,6.45,2.7);
+  const g=new THREE.Sprite(glowMat); g.scale.setScalar(2.4); g.position.set(x,6.3,2.7); g.visible=false; world.add(g); lampGlows.push(g);
+  const pool=addMesh(new THREE.PlaneGeometry(8,8).rotateX(-Math.PI/2),poolMat,x,0.02,2.2); lampPools.push(pool);
+}
+// pokok kelapa atas pasir
+const trunkMat=lambert({color:0x8a6a48}), frondMat=lambert({color:0x4f8a35,side:THREE.DoubleSide});
+for(let x=-140;x<=140;x+=9+rand()*7){
+  const palm=new THREE.Group(); const lean=(rand()-.5)*0.5, h=5+rand()*3;
+  let px=0,py=0; const segs=5;
+  for(let i=0;i<segs;i++){const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.19,h/segs+0.05,6),trunkMat); const a=lean*(i/segs); px+=Math.sin(a)*h/segs; py+=Math.cos(a)*h/segs; seg.position.set(px,py-h/segs/2,0); seg.rotation.z=-a; palm.add(seg);}
+  for(let f=0;f<8;f++){const fr=new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.55),frondMat); fr.geometry.translate(1.3,0,0); fr.position.set(px,py,0); fr.rotation.set(-0.5,f/8*Math.PI*2,-0.45-rand()*0.3,'YXZ'); palm.add(fr);}
+  palm.position.set(x,-0.1,8.5+rand()*6); palm.rotation.y=rand()*6.28; world.add(palm);
+}
+
+// ---------------- environment map (pantulan untuk material hero) ----------------
+const pmrem=new THREE.PMREMGenerator(renderer);
+const envScene=new THREE.Scene();
+const envSkyGeo=skyGeo.clone(); const envSky=new THREE.Mesh(envSkyGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide}));
+envScene.add(envSky);
+const softMat=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide});
+const soft1=new THREE.Mesh(new THREE.PlaneGeometry(260,60),softMat); soft1.position.set(0,320,-120); soft1.lookAt(0,0,0); envScene.add(soft1);
+const soft2=new THREE.Mesh(new THREE.PlaneGeometry(120,40),softMat); soft2.position.set(-300,160,200); soft2.lookAt(0,0,0); envScene.add(soft2);
+let envRT=null, envMap=null;
+
+// ---------------- materials (hero vs PS2) ----------------
+const PAINTS=[['Merah Cili','#c41e29'],['Biru Selat','#1e5ea8'],['Hijau Pandan','#3e9a49'],['Kuning Kunyit','#e8b01a'],['Putih Mutiara','#ece8df'],['Hitam Malam','#141519'],['Ungu Terung','#5a2a6d'],['Oren Senja','#e6672a']];
+const HERO={
+  paint:new THREE.MeshPhysicalMaterial({color:PAINTS[0][1],metalness:0.25,roughness:0.2,clearcoat:1,clearcoatRoughness:0.05}),
+  rim:new THREE.MeshStandardMaterial({color:0xe2e6ea,metalness:1,roughness:0.14}),
+  chrome:new THREE.MeshStandardMaterial({color:0xeef1f4,metalness:1,roughness:0.1}),
+  tire:new THREE.MeshStandardMaterial({color:0x151515,roughness:0.92}),
+  glass:new THREE.MeshPhysicalMaterial({color:0x0c1219,metalness:0.1,roughness:0.04,clearcoat:1}),
+  dark:new THREE.MeshStandardMaterial({color:0x1b1c20,roughness:0.65,metalness:0.2}),
+  seat:new THREE.MeshStandardMaterial({color:0x101012,roughness:0.55}),
+  metal:new THREE.MeshStandardMaterial({color:0x6f727a,metalness:0.8,roughness:0.4}),
+  head:new THREE.MeshStandardMaterial({color:0xfffbe8,emissive:0xfff0c8,emissiveIntensity:0.5,roughness:0.2}),
+  tail:new THREE.MeshStandardMaterial({color:0x4a0707,emissive:0xff2414,emissiveIntensity:0.35,roughness:0.3}),
+  plate:new THREE.MeshStandardMaterial({map:texPlate,roughness:0.5})
+};
+const PS2={
+  paint:new THREE.MeshLambertMaterial({color:PAINTS[0][1]}),
+  rim:new THREE.MeshLambertMaterial({color:0xb8bcc2}),
+  chrome:new THREE.MeshLambertMaterial({color:0xc4c8cc}),
+  tire:new THREE.MeshLambertMaterial({color:0x1a1a1a}),
+  glass:new THREE.MeshLambertMaterial({color:0x1e2a36}),
+  dark:new THREE.MeshLambertMaterial({color:0x222327}),
+  seat:new THREE.MeshLambertMaterial({color:0x151517}),
+  metal:new THREE.MeshLambertMaterial({color:0x6f727a}),
+  head:new THREE.MeshLambertMaterial({color:0xfffbe8,emissive:0xfff0c8,emissiveIntensity:0.5}),
+  tail:new THREE.MeshLambertMaterial({color:0x4a0707,emissive:0xff2414,emissiveIntensity:0.35}),
+  plate:new THREE.MeshLambertMaterial({map:texPlate})
+};
+const HERO_ENV=['paint','rim','chrome','glass','metal','dark','head'];
+
+// ---------------- vehicle building helpers ----------------
+function part(parent,geo,role,x,y,z,rx,ry,rz){const m=new THREE.Mesh(geo,HERO[role]); m.userData.role=role; m.position.set(x||0,y||0,z||0); m.rotation.set(rx||0,ry||0,rz||0); parent.add(m); return m;}
+const UP=new THREE.Vector3(0,1,0);
+function rod(parent,a,b,r,role){const d=new THREE.Vector3().subVectors(b,a); const m=part(parent,new THREE.CylinderGeometry(r,r,d.length(),8),role); m.position.copy(a).addScaledVector(d,0.5); m.quaternion.setFromUnitVectors(UP,d.clone().normalize()); return m;}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+
+// ---- KERETA (hatchback kecil) ----
+function buildCar(){
+  const g=new THREE.Group();
+  const wr=0.33, wx=1.28, ar=0.43;
+  // profil sisi badan dengan lengkung roda
+  const s=new THREE.Shape(); s.moveTo(-2.0,0.32); s.lineTo(-wx-ar,0.32);
+  for(let i=0;i<=8;i++){const a=Math.PI-i/8*Math.PI; s.lineTo(-wx+Math.cos(a)*ar,wr+Math.sin(a)*ar);}
+  s.lineTo(wx-ar,0.32);
+  for(let i=0;i<=8;i++){const a=Math.PI-i/8*Math.PI; s.lineTo(wx+Math.cos(a)*ar,wr+Math.sin(a)*ar);}
+  s.lineTo(2.0,0.32); s.lineTo(2.08,0.5); s.lineTo(2.03,0.74); s.lineTo(1.88,0.82); s.lineTo(0.72,0.92); s.lineTo(-1.72,0.97); s.lineTo(-2.02,0.92); s.lineTo(-2.08,0.6); s.lineTo(-2.0,0.32);
+  const body=new THREE.ExtrudeGeometry(s,{depth:1.6,bevelEnabled:true,bevelThickness:0.06,bevelSize:0.05,bevelSegments:2,curveSegments:4});
+  body.translate(0,0,-0.8); part(g,body,'paint');
+  // kabin kaca
+  const c=new THREE.Shape(); c.moveTo(0.78,0.9); c.lineTo(-0.02,1.4); c.lineTo(-1.42,1.42); c.lineTo(-1.98,0.95); c.lineTo(0.78,0.9);
+  const cab=new THREE.ExtrudeGeometry(c,{depth:1.34,bevelEnabled:true,bevelThickness:0.03,bevelSize:0.03,bevelSegments:1}); cab.translate(0,0,-0.67); part(g,cab,'glass');
+  part(g,new THREE.BoxGeometry(1.44,0.06,1.38),'paint',-0.72,1.44,0);          // bumbung
+  for(const z of [-0.69,0.69]){ part(g,new THREE.BoxGeometry(0.12,0.5,0.04),'paint',-0.55,1.17,z); } // tiang B
+  // bampar, gril, lampu
+  part(g,new THREE.BoxGeometry(0.16,0.22,1.62),'dark',2.06,0.4,0);
+  part(g,new THREE.BoxGeometry(0.16,0.22,1.62),'dark',-2.06,0.42,0);
+  part(g,new THREE.BoxGeometry(0.05,0.12,0.7),'dark',2.1,0.64,0);
+  for(const z of [-0.56,0.56]){ part(g,new THREE.BoxGeometry(0.06,0.13,0.34),'head',2.08,0.69,z); part(g,new THREE.BoxGeometry(0.06,0.16,0.3),'tail',-2.1,0.76,z); }
+  part(g,new THREE.BoxGeometry(0.02,0.11,0.44),'plate',2.15,0.42,0,0,Math.PI/2*0,0).rotation.y=-Math.PI/2;
+  part(g,new THREE.BoxGeometry(0.02,0.11,0.44),'plate',-2.15,0.5,0).rotation.y=Math.PI/2;
+  for(const z of [-0.88,0.88]){ part(g,new THREE.BoxGeometry(0.16,0.1,0.12),'paint',0.62,1.02,z); } // cermin sisi
+  part(g,new THREE.BoxGeometry(3.0,0.1,1.5),'dark',0,0.3,0); // skirt bawah
+  // roda
+  for(const x of [-wx,wx]) for(const z of [-0.79,0.79]){
+    const w=new THREE.Group(); w.position.set(x,wr,z); g.add(w);
+    part(w,new THREE.CylinderGeometry(wr,wr,0.24,16).rotateX(Math.PI/2),'tire');
+    const sgn=Math.sign(z);
+    part(w,new THREE.CylinderGeometry(0.21,0.21,0.02,14).rotateX(Math.PI/2),'dark',0,0,sgn*0.115);
+    part(w,new THREE.TorusGeometry(0.205,0.022,6,16),'rim',0,0,sgn*0.125);
+    part(w,new THREE.CylinderGeometry(0.05,0.05,0.04,8).rotateX(Math.PI/2),'rim',0,0,sgn*0.13);
+    for(let k=0;k<5;k++){const a=k/5*Math.PI*2; part(w,new THREE.BoxGeometry(0.17,0.04,0.025),'rim',Math.cos(a)*0.11,Math.sin(a)*0.11,sgn*0.128,0,0,a);}
+  }
+  g.userData={target:0.75,shadow:[5.2,2.6],headPos:V(2.1,0.69,0),dist:5.8};
+  return g;
+}
+
+// ---- KAPCAI (underbone 110cc rekaan) ----
+function buildKapcai(){
+  const g=new THREE.Group();
+  const wr=0.3, fx=0.63, rx=-0.62;
+  function wheel(x,front){
+    const w=new THREE.Group(); w.position.set(x,wr,0); g.add(w);
+    part(w,new THREE.TorusGeometry(0.255,0.05,8,22),'tire');
+    part(w,new THREE.TorusGeometry(0.205,0.014,6,22),'rim');
+    part(w,new THREE.CylinderGeometry(0.045,0.045,0.13,10).rotateX(Math.PI/2),'metal');
+    for(let k=0;k<5;k++){const a=k/5*Math.PI*2+0.3; part(w,new THREE.BoxGeometry(0.16,0.028,0.03),'rim',Math.cos(a)*0.12,Math.sin(a)*0.12,0,0,0,a);}
+    if(front) part(w,new THREE.CylinderGeometry(0.11,0.11,0.01,16).rotateX(Math.PI/2),'chrome',0,0,0.05);
+    return w;
+  }
+  wheel(fx,true); wheel(rx,false);
+  // badan underbone (profil sisi, diekstrud nipis)
+  const s=new THREE.Shape();
+  [[0.40,1.0],[0.5,0.86],[0.36,0.46],[0.15,0.34],[-0.36,0.34],[-0.72,0.5],[-1.0,0.68],[-1.03,0.8],[-0.22,0.8],[-0.06,0.56],[0.12,0.56],[0.3,0.92]].forEach((p,i)=>i?s.lineTo(p[0],p[1]):s.moveTo(p[0],p[1]));
+  const bg=new THREE.ExtrudeGeometry(s,{depth:0.24,bevelEnabled:true,bevelThickness:0.03,bevelSize:0.025,bevelSegments:2}); bg.translate(0,0,-0.12); part(g,bg,'paint');
+  // perisai kaki (legshield)
+  part(g,new THREE.BoxGeometry(0.05,0.52,0.44),'paint',0.42,0.68,0,0,0,-0.38);
+  // fender depan
+  part(g,new THREE.TorusGeometry(0.32,0.045,4,12,Math.PI*0.62),'paint',fx,wr,0,0,0,Math.PI*0.2);
+  // fork depan & bar hendal
+  for(const z of [-0.075,0.075]) rod(g,V(fx,wr,z),V(0.46,0.96,z),0.022,'chrome');
+  rod(g,V(0.42,1.04,-0.33),V(0.42,1.04,0.33),0.016,'chrome');
+  for(const z of [-0.3,0.3]) part(g,new THREE.CylinderGeometry(0.024,0.024,0.12,8).rotateX(Math.PI/2),'seat',0.42,1.04,z);
+  // cermin
+  for(const z of [-0.22,0.22]){ rod(g,V(0.42,1.05,z),V(0.38,1.3,z*1.25),0.008,'chrome'); part(g,new THREE.CylinderGeometry(0.06,0.06,0.015,10).rotateZ(Math.PI/2),'chrome',0.38,1.32,z*1.25); }
+  // kepala lampu (cowl) + lampu
+  part(g,new THREE.BoxGeometry(0.2,0.14,0.26),'paint',0.5,0.98,0,0,0,-0.2);
+  part(g,new THREE.BoxGeometry(0.03,0.08,0.18),'head',0.61,0.96,0,0,0,-0.2);
+  // bakul depan (ikon kapcai!)
+  const basket=new THREE.Group(); basket.position.set(0.7,0.84,0); g.add(basket);
+  const bb=new THREE.BoxGeometry(0.26,0.18,0.32);
+  basket.add(new THREE.LineSegments(new THREE.EdgesGeometry(bb),new THREE.LineBasicMaterial({color:0x111111})));
+  const bl=[]; for(let i=-0.12;i<=0.121;i+=0.06){bl.push(new THREE.Vector3(0.13,-0.09,i),new THREE.Vector3(0.13,0.09,i),new THREE.Vector3(-0.13,-0.09,i),new THREE.Vector3(-0.13,0.09,i));}
+  for(let i=-0.1;i<=0.101;i+=0.05){bl.push(new THREE.Vector3(i,-0.09,-0.16),new THREE.Vector3(i,0.09,-0.16),new THREE.Vector3(i,-0.09,0.16),new THREE.Vector3(i,0.09,0.16));}
+  basket.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(bl),new THREE.LineBasicMaterial({color:0x111111})));
+  rod(g,V(0.58,0.78,0),V(0.48,0.92,0),0.012,'dark');
+  // enjin, tempat kaki, swingarm, absorber
+  part(g,new THREE.BoxGeometry(0.34,0.24,0.2),'metal',-0.14,0.3,0);
+  part(g,new THREE.CylinderGeometry(0.07,0.08,0.18,8),'metal',0.06,0.36,0,0,0,-1.1);
+  part(g,new THREE.BoxGeometry(0.34,0.035,0.34),'dark',0.04,0.36,0);
+  for(const z of [-0.1,0.1]){ rod(g,V(-0.12,0.3,z),V(rx,wr,z),0.025,'dark'); rod(g,V(rx+0.06,wr+0.02,z*1.15),V(-0.78,0.78,z*1.15),0.022,'chrome'); }
+  // tempat duduk panjang
+  part(g,new THREE.BoxGeometry(0.74,0.1,0.27),'seat',-0.62,0.86,0);
+  part(g,new THREE.BoxGeometry(0.6,0.05,0.25),'seat',-0.6,0.92,0);
+  // rak belakang + lampu belakang + plat
+  part(g,new THREE.BoxGeometry(0.22,0.02,0.24),'chrome',-1.06,0.9,0);
+  part(g,new THREE.BoxGeometry(0.05,0.07,0.16),'tail',-1.06,0.78,0);
+  part(g,new THREE.BoxGeometry(0.02,0.09,0.18),'plate',-1.08,0.66,0).rotation.y=Math.PI/2;
+  // fender belakang
+  part(g,new THREE.TorusGeometry(0.31,0.04,4,10,Math.PI*0.45),'dark',rx,wr,0,0,0,Math.PI*0.32);
+  // ekzos chrome (sebelah kanan, +z)
+  rod(g,V(0.0,0.24,0.12),V(-0.45,0.26,0.17),0.03,'chrome');
+  part(g,new THREE.CylinderGeometry(0.058,0.05,0.42,12),'chrome',-0.68,0.32,0.18,0,0,Math.PI/2+0.12);
+  part(g,new THREE.CylinderGeometry(0.04,0.04,0.05,10),'dark',-0.9,0.35,0.18,0,0,Math.PI/2+0.12);
+  // tongkat sisi (sebelah kiri, -z)
+  rod(g,V(-0.1,0.3,-0.12),V(-0.05,0.02,-0.34),0.014,'dark');
+  g.rotation.x=0.13; // senget atas tongkat sisi
+  g.position.y=0.02;
+  g.userData={target:0.72,shadow:[2.4,1.0],headPos:V(0.62,0.96,0),dist:3.6};
+  return g;
+}
+
+// ---------------- vehicle management ----------------
+const vehicleRoot=new THREE.Group(); scene.add(vehicleRoot);
+const shadowTex=glowTex('rgba(0,0,0,.75)','rgba(0,0,0,.45)');
+const blob=new THREE.Mesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false}));
+blob.position.y=0.015; vehicleRoot.add(blob);
+const vehicles={car:buildCar(),kapcai:buildKapcai()};
+vehicles.car.position.z=-1.6; vehicles.kapcai.position.z=-1.8;
+Object.values(vehicles).forEach(v=>vehicleRoot.add(v));
+const headSpot=new THREE.SpotLight(0xfff0d0,0,26,0.42,0.55,1.4); scene.add(headSpot); scene.add(headSpot.target);
+const headGlows=[new THREE.Sprite(glowMat),new THREE.Sprite(glowMat)]; headGlows.forEach(s=>{s.visible=false;scene.add(s);});
+
+function applyStyle(){
+  const set=state.style==='hero'?HERO:PS2;
+  vehicleRoot.traverse(o=>{ if(o.isMesh && o.userData.role) o.material=set[o.userData.role]; });
+}
+function applyPaint(){
+  const c=PAINTS[state.paint][1]; HERO.paint.color.set(c); PS2.paint.color.set(c);
+  document.getElementById('paintName').textContent=PAINTS[state.paint][0];
+}
+function applyFinish(){
+  const p=HERO.paint;
+  if(state.finish==='gloss'){p.metalness=0.25;p.roughness=0.2;p.clearcoat=1;p.clearcoatRoughness=0.05;}
+  if(state.finish==='metal'){p.metalness=0.85;p.roughness=0.32;p.clearcoat=0.7;p.clearcoatRoughness=0.15;}
+  if(state.finish==='matte'){p.metalness=0.0;p.roughness=0.85;p.clearcoat=0;p.clearcoatRoughness=0.5;}
+  p.needsUpdate=true;
+}
+function applyRim(){
+  const r=HERO.rim, q=PS2.rim;
+  if(state.rim==='chrome'){r.color.set(0xe2e6ea);r.metalness=1;r.roughness=0.14;q.color.set(0xb8bcc2);}
+  if(state.rim==='black'){r.color.set(0x1c1c1f);r.metalness=0.6;r.roughness=0.35;q.color.set(0x232326);}
+  if(state.rim==='gold'){r.color.set(0xd6a640);r.metalness=1;r.roughness=0.22;q.color.set(0xc39a3c);}
+}
+function applyVehicle(){
+  for(const k in vehicles) vehicles[k].visible=(k===state.vehicle);
+  const v=vehicles[state.vehicle], u=v.userData;
+  blob.scale.set(u.shadow[0],1,u.shadow[1]); blob.position.set(0,0.015,v.position.z);
+  target.set(0,u.target,v.position.z);
+  if(!hot.dist) state.dist=u.dist;
+  hot.dist=null;
+  countTris();
+}
+
+// ---------------- time of day (macam jadual "timecycle") ----------------
+const TIMES={
+  noon:{top:'#3d86d6',hor:'#cfe5f3',gnd:'#8a8a7a',fog:'#d6e6ee',near:45,far:220,sun:'#fff6e8',si:1.25,hs:'#dff0ff',hg:'#6b6a55',hi:0.75,sunDir:[0.3,0.9,0.4],sea:'#3b88a8',lamps:0,soft:'#ffffff',softI:1,sign:0.08},
+  dusk:{top:'#4a5f9e',hor:'#f2a06a',gnd:'#5e4436',fog:'#e49a62',near:28,far:150,sun:'#ffad72',si:1.05,hs:'#ffd2a8',hg:'#5a4636',hi:0.62,sunDir:[-0.85,0.12,0.5],sea:'#6a6f8a',lamps:0.35,soft:'#ffd9b0',softI:1,sign:0.35},
+  night:{top:'#050916',hor:'#1a2446',gnd:'#07080d',fog:'#141c33',near:14,far:95,sun:'#8ea6ff',si:0.22,hs:'#3a4a7a',hg:'#0c0c12',hi:0.28,sunDir:[0.4,0.7,-0.3],sea:'#0f1d2e',lamps:1,soft:'#ffb35c',softI:1,sign:1}
+};
+const lampLights=[];
+for(const x of [-9,9]){const pl=new THREE.PointLight(0xffb866,0,18,1.8); pl.position.set(x,6.0,2.7); scene.add(pl); lampLights.push(pl);}
+function applyTime(){
+  const t=TIMES[state.time];
+  paintSky(skyGeo,t.top,t.hor,t.gnd); paintSky(envSkyGeo,t.top,t.hor,t.gnd);
+  scene.fog.color.set(t.fog); scene.fog.near=t.near; scene.fog.far=t.far; scene.background=new THREE.Color(t.fog);
+  sun.color.set(t.sun); sun.intensity=t.si; sun.position.set(t.sunDir[0]*100,t.sunDir[1]*100,t.sunDir[2]*100);
+  hemi.color.set(t.hs); hemi.groundColor.set(t.hg); hemi.intensity=t.hi;
+  sunSprite.position.set(t.sunDir[0],t.sunDir[1],t.sunDir[2]).normalize().multiplyScalar(560);
+  sunSprite.material.color.set(state.time==='night'?'#9fb2ff':'#ffffff'); sunSprite.scale.setScalar(state.time==='night'?60:120);
+  seaMat.color.set(t.sea);
+  const on=t.lamps;
+  lampHeadMat.emissiveIntensity=on*1.2; lampGlows.forEach(g=>g.visible=on>0.3); poolMat.opacity=on*0.9;
+  lampLights.forEach(l=>l.intensity=on*1.6);
+  signMats.forEach(m=>m.emissiveIntensity=t.sign);
+  const night=state.time==='night';
+  HERO.head.emissiveIntensity=PS2.head.emissiveIntensity=night?1.6:0.5;
+  HERO.tail.emissiveIntensity=PS2.tail.emissiveIntensity=night?1.4:0.35;
+  headSpot.intensity=night?2.2:(state.time==='dusk'?0.6:0);
+  headGlows.forEach(s=>s.visible=night);
+  softMat.color.set(t.soft);
+  // jana semula peta pantulan
+  if(envRT) envRT.dispose();
+  envRT=pmrem.fromScene(envScene,0.03); envMap=envRT.texture;
+  HERO_ENV.forEach(k=>{HERO[k].envMap=envMap; HERO[k].envMapIntensity=night?0.7:1; HERO[k].needsUpdate=true;});
+}
+
+// ---------------- camera orbit ----------------
+const target=new THREE.Vector3(0,0.72,-1.8);
+let auto=!hot.yaw, lastInteract=0;
+const pointers=new Map(); let pinchDist=0;
+canvas.addEventListener('pointerdown',e=>{pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); auto=false; lastInteract=performance.now(); try{canvas.setPointerCapture(e.pointerId);}catch(err){} if(pointers.size===2){const [a,b]=[...pointers.values()]; pinchDist=Math.hypot(a.x-b.x,a.y-b.y);}});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const prev=pointers.get(e.pointerId); pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); lastInteract=performance.now();
+  if(pointers.size===1){ state.yaw-=(e.clientX-prev.x)*0.006; state.pitch=Math.min(1.25,Math.max(0.04,state.pitch+(e.clientY-prev.y)*0.005)); }
+  else if(pointers.size===2){const [a,b]=[...pointers.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); if(pinchDist>0) state.dist=Math.min(14,Math.max(1.8,state.dist*pinchDist/d)); pinchDist=d;}
+});
+function up(e){pointers.delete(e.pointerId); pinchDist=0;}
+canvas.addEventListener('pointerup',up); canvas.addEventListener('pointercancel',up);
+canvas.addEventListener('wheel',e=>{e.preventDefault(); state.dist=Math.min(14,Math.max(1.8,state.dist*(1+e.deltaY*0.001))); lastInteract=performance.now(); auto=false;},{passive:false});
+
+// ---------------- UI ----------------
+const sw=document.getElementById('swatches');
+PAINTS.forEach((p,i)=>{const b=document.createElement('button'); b.type='button'; b.className='sw'; b.style.background=p[1]; b.setAttribute('aria-label',p[0]); b.title=p[0]; b.addEventListener('click',()=>{state.paint=i; applyPaint(); syncUI();}); sw.appendChild(b);});
+function seg(id,key,fn){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; state[key]=b.dataset.v; fn(); syncUI();});}
+seg('segVehicle','vehicle',applyVehicle); seg('segFinish','finish',applyFinish); seg('segRim','rim',applyRim); seg('segTime','time',applyTime); seg('segStyle','style',applyStyle);
+const NOTES={hero:'<strong>Hero berkilat:</strong> cat ada lapisan kilat (clearcoat) dan memantulkan langit. Dunia di sekeliling kekal ringkas gaya PS2, jadi kenderaan menonjol.',ps2:'<strong>PS2 rata:</strong> kenderaan guna material yang sama ringkas macam dunia. Bandingkan dengan Hero berkilat. Kos prestasi hampir sama, tapi rupa jauh berbeza.'};
+function syncUI(){
+  for(const [id,key] of [['segVehicle','vehicle'],['segFinish','finish'],['segRim','rim'],['segTime','time'],['segStyle','style']])
+    document.querySelectorAll('#'+id+' button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v===state[key])));
+  sw.querySelectorAll('.sw').forEach((b,i)=>b.setAttribute('aria-pressed',String(i===state.paint)));
+  document.getElementById('styleNote').innerHTML=NOTES[state.style];
+  document.getElementById('segFinish').style.opacity=state.style==='hero'?1:0.5;
+}
+function countTris(){
+  const n=o=>{let t=0;o.traverse(m=>{if(m.isMesh&&m.visible!==false){const g=m.geometry;t+=(g.index?g.index.count:g.attributes.position.count)/3;}});return Math.round(t);};
+  document.getElementById('triVehicle').textContent=n(vehicles[state.vehicle]).toLocaleString('ms-MY');
+  document.getElementById('triWorld').textContent=n(world).toLocaleString('ms-MY');
+}
+
+// ---------------- boot ----------------
+applyStyle(); applyPaint(); applyFinish(); applyRim(); applyTime(); applyVehicle(); syncUI();
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clock=new THREE.Clock(); const tmpV=new THREE.Vector3();
+function frame(){
+  requestAnimationFrame(frame);
+  const dt=Math.min(clock.getDelta(),0.05);
+  if(!auto && performance.now()-lastInteract>6000 && pointers.size===0) auto=true;
+  if(auto && !reduce) state.yaw+=dt*0.18;
+  const cp=Math.cos(state.pitch);
+  camera.position.set(target.x+Math.sin(state.yaw)*cp*state.dist, target.y+Math.sin(state.pitch)*state.dist, target.z+Math.cos(state.yaw)*cp*state.dist);
+  if(camera.position.y<0.15) camera.position.y=0.15;
+  camera.lookAt(target);
+  sky.position.copy(camera.position);
+  // lampu depan kenderaan aktif
+  const v=vehicles[state.vehicle]; tmpV.copy(v.userData.headPos); v.localToWorld(tmpV);
+  headSpot.position.copy(tmpV); headSpot.target.position.set(tmpV.x+12,0,tmpV.z);
+  headGlows[0].position.copy(tmpV); headGlows[0].scale.setScalar(state.vehicle==='car'?0.8:0.6);
+  if(state.vehicle==='car'){ const a=V(2.1,0.69,0.56), b=V(2.1,0.69,-0.56); v.localToWorld(a); v.localToWorld(b); headGlows[0].position.copy(a); headGlows[1].position.copy(b); headGlows[1].scale.setScalar(0.8); headGlows[1].visible=headGlows[0].visible; }
+  else headGlows[1].visible=false;
+  renderer.render(scene,camera);
+}
+frame();
+if(window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(()=>Object.assign({},state));
+}
+
+if(window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
+else start((window.claude && window.claude.hot && window.claude.hot.data) || {});
+})();
+</script>
+</body>
+</html>
