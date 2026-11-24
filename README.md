@@ -3,11 +3,31 @@
 Game hobi multiplayer open world: lepak dan berlumba dengan kapcai atau kereta yang diubah suai sendiri, dalam peta yang diilhamkan dari negeri Melaka. Dibina perlahan-lahan sambil belajar.
 
 ## Main demo sekarang
-Buka `index.html` dalam browser (perlu internet untuk three.js dan font).
+Buka https://amirluqman1.github.io/Projek-hobi/ (perlu internet untuk three.js dan font). Dalam komputer: lihat **Susunan fail** di bawah.
 
 Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Branch: `main`, folder `/root`) supaya kawan boleh main guna link.
 
 **Demo semasa: Bengkel Senja.** Satu jalan kedai tepi laut gaya PS2, dengan kapcai dan kereta low-poly yang boleh dipusing, ditukar cat (8 warna), kemasan (berkilat/metalik/matte), rim (chrome/hitam/emas), waktu (tengah hari/senja/malam), dan material (hero berkilat ↔ PS2 rata).
+
+## Susunan fail
+| Fail | Isi |
+|---|---|
+| `index.html` | HTML je: panel, butang, meter laju |
+| `css/gaya.css` | Warna & susun atur UI |
+| `js/main.js` | **Mula baca di sini.** Sambung semua bahagian + game loop |
+| `js/teras.js` | `state`, renderer, scene, kamera, fungsi bantuan |
+| `js/dunia.js` | Tekstur PS2, langit, Jalan Pantai, Tasik Ayer Keroh, pokok |
+| `js/kenderaan.js` | Material hero/PS2, `buildKapcai()`, `buildCar()`, ubah suai |
+| `js/waktu.js` | Siang/senja/malam, pantulan, lampu jalan |
+| `js/input.js` | Papan kekunci & butang skrin |
+| `js/tunggang.js` | Fizik (`SPEC`, laju, belok, condong) & pelanggaran |
+| `js/kamera.js` | Kamera orbit bengkel & kamera kejar |
+| `js/bunyi.js` | Bunyi enjin (`ENGINE`, gear) |
+| `js/multiplayer.js` | Sambung server, pemain lain |
+| `js/ui.js` | Panel bengkel |
+| `server/` | Server multiplayer (Node.js) |
+
+⚠️ Kod guna **ES modules**, jadi `index.html` **tak boleh double-click**. Buka melalui GitHub Pages / githack, atau `python3 -m http.server` dalam folder ni dan buka `http://localhost:8000`.
 
 ## Server multiplayer (`server/`)
 - Kod server: `server/index.js` (Colyseus 0.15, Node.js). Pelanggan browser guna `colyseus.js@0.15.26`.
