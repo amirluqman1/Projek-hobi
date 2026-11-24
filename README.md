@@ -33,7 +33,12 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 |---|---|---|
 | 0 | Faham asas kod (rujuk `pulau-contoh.html` dalam repo Game-contoh-macam-blokblast, branch `claude/pulau-contoh`) | ⏳ |
 | — | Demo gaya visual: **Bengkel Senja** (`index.html`) | ✅ |
-| 1 | Peta 100 m × 100 m, **satu kapcai boleh dibawa** (fizik + kamera kenderaan) | ⬜ |
+| 1 | Peta 100 m × 100 m, **satu kapcai boleh dibawa** (fizik + kamera kenderaan) | ✅ |
+| 1a | Tekan **Tunggang**: bawa depan/belakang atas Jalan Pantai, kamera kejar, meter laju, butang skrin phone | ✅ |
+| 1b | Belok (A/D, ←/→, butang ◀ ▶) + kapcai condong ikut fizik sebenar, kereta goyang ke luar | ✅ |
+| 1c | Rasa arcade: tala `SPEC` (dibuat sendiri: top 40, accel 15, brake 90, turn 1.5) | ✅ |
+| 1c+ | **Pelanggaran**: tiang, tong, tayar (collider bulatan), lantun/gesel, kamera bergegar | ✅ |
+| 1d | **Tasik Ayer Keroh (rekaan)**: jalan berliku keliling tasik (~100 m × 80 m), simpang dari Jalan Pantai, hutan 140 pokok (instancing), wakaf, zon air | ✅ |
 | 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | ⬜ |
 | 3 | **Lumba**: checkpoint, pemasa, kedudukan | ⬜ |
 | 4 | **Bengkel & kedai**: duit, beli/pasang part, statistik, simpan (Supabase) | ⬜ |

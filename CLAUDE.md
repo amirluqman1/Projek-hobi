@@ -13,4 +13,10 @@ Baca `README.md` dulu untuk visi, keputusan teknikal dan pelan fasa projek ni.
 - Kod **dikomen dalam Bahasa Melayu**, ikut seksyen, supaya pemilik boleh belajar dengan membaca.
 - Satu langkah kecil yang **boleh dimain** setiap kali. Elak buat banyak sistem serentak.
 - Ikut **Peraturan projek** dalam README: takde jenama sebenar, takde aset dari game lain, kredit OSM, server pegang duit.
-- Langkah seterusnya yang dirancang: **Fasa 1**, buat kapcai dalam `index.html` boleh dibawa atas jalan (fizik arcade + kamera kenderaan).
+- Fasa 1 dipecah kecil (1a, 1b, 1c, 1d). Lihat jadual dalam README. **1a dan 1b dah siap**: seksyen `MOD TUNGGANG` dalam `index.html` (input → fizik: laju, stereng, belok, gerak, condong → kamera kejar).
+- 1c siap: pemilik tala `SPEC` sendiri (nilai sekarang pilihan dia, jangan tukar tanpa tanya). Pelanggaran guna `COLLIDERS` (bulatan {x,z,r}) + `collide()`; kedai/tembok laut masih clamp z.
+- 1d siap: gelung `LOOP_ROAD` (CatmullRom) keliling tasik `LAKE`, simpang `JUNCTIONS` x=-44 & 60, pokok InstancedMesh, `groundY()` untuk kaki lima/tasik. Diilhamkan dari suasana Ayer Keroh (pilihan pemilik), bukan peta sebenar.
+- Fasa 1 siap. Seterusnya ikut README: Fasa 2 (multiplayer). Tanya pemilik dulu sebab langkah tu besar.
+- Pemilik test atas phone guna raw.githack.com (branch `fasa-1a-tunggang`), belum merge ke `main`.
+- Pemilik tengah belajar Blender untuk design kapcai sendiri (mungkin kitbash dari model CC0). Model `.glb` nanti ganti `buildKapcai()`; fizik tak perlu diubah.
+- Nota test: cdnjs diblok dalam container cloud. Untuk test dengan Playwright, ambil `three@0.128.0` dari npm dan `page.route` ke fail tu.
