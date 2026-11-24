@@ -623,7 +623,7 @@ canvas.addEventListener('wheel',e=>{e.preventDefault(); state.dist=Math.min(14,M
 //           tolak guna kaki: perlahan sangat.
 //   turn  : kuat belok (radian sesaat) masa laju rendah. 1.3 rad ≈ 75° sesaat
 const SPEC={
-  kapcai:{top:25, accel:5,   brake:9,  rev:1.5, turn:1.3},
+  kapcai:{top:40, accel:15,   brake:90,  rev:1.5, turn:1.3},
   car:   {top:33, accel:4,   brake:10, rev:5,   turn:1.0}
 };
 const COAST=1.2;      // bila lepas minyak, laju turun sendiri (geseran + angin)
