@@ -88,6 +88,10 @@ body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webki
 .mute-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}
 .garage-btn{font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;}
 .speedo{position:fixed;z-index:2;left:calc(16px + var(--sal));bottom:calc(56px + var(--sab));background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 44px 10px 16px;display:grid;justify-items:start;pointer-events:none;font-variant-numeric:tabular-nums;}
+.net{position:fixed;z-index:2;top:calc(70px + var(--sat));left:calc(16px + var(--sal));max-width:calc(100vw - 32px);font-size:12px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 12px 5px 24px;pointer-events:none;}
+.net::before{content:"";position:absolute;left:10px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:#888;}
+.net[data-st="on"]::before{background:#4cd07a;}
+.net[data-st="wait"]::before{background:var(--signal);}
 .speedo b{font-family:var(--font-display);font-size:44px;font-weight:700;line-height:1;}
 .speedo span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
 .speedo .rev{color:var(--signal);}
@@ -104,7 +108,7 @@ body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webki
 .pad.gas{background:var(--signal);color:var(--signal-ink);border-color:transparent;}
 .pad.held{transform:scale(.94);filter:brightness(1.2);}
 body.riding .panel{display:none;}
-body:not(.riding) .ride-top, body:not(.riding) .speedo, body:not(.riding) .pads{display:none;}
+body:not(.riding) .net, body:not(.riding) .ride-top, body:not(.riding) .speedo, body:not(.riding) .pads{display:none;}
 
 @media (max-width:760px){
   .pad{width:72px;height:72px;}
@@ -186,6 +190,7 @@ body:not(.riding) .ride-top, body:not(.riding) .speedo, body:not(.riding) .pads{
   <button type="button" class="mute-btn" id="btnMute" aria-label="Senyapkan bunyi">🔊</button>
   <button type="button" class="garage-btn" id="btnGarage">◀ Bengkel</button>
 </div>
+<div class="net" id="netStatus" data-st="off" aria-live="polite"></div>
 <div class="speedo" aria-live="off"><b id="speedNum">0</b><span id="speedUnit">km/j</span><i id="gearNum" title="Gear">N</i></div>
 <div class="pads pads-steer">
   <button type="button" class="pad" data-k="left" aria-label="Belok kiri">◀</button>
@@ -197,6 +202,8 @@ body:not(.riding) .ride-top, body:not(.riding) .speedo, body:not(.riding) .pads{
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Colyseus: pustaka untuk sambung ke server multiplayer -->
+<script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.15.26/dist/colyseus.js"></script>
 <script>
 (function(){
 "use strict";
@@ -927,7 +934,7 @@ function setMode(m){
     : 'Seret untuk pusing · roda atau cubit untuk zum';
   auto=false; lastInteract=performance.now();
 }
-document.getElementById('btnRide').addEventListener('click',()=>{ initAudio(); setMode('ride'); });
+document.getElementById('btnRide').addEventListener('click',()=>{ initAudio(); setMode('ride'); connectNet(); });
 document.getElementById('btnGarage').addEventListener('click',()=>setMode('garage'));
 const speedNum=document.getElementById('speedNum'), speedUnit=document.getElementById('speedUnit');
 
@@ -1032,6 +1039,109 @@ addEventListener('keydown',e=>{ if(e.code==='KeyM' && state.mode==='ride'){ init
 // Tukar tab / skrin phone tutup: hentikan bunyi
 document.addEventListener('visibilitychange',()=>{ if(!audio) return; if(document.hidden) audio.ctx.suspend(); else audio.ctx.resume(); });
 
+// ---------------- MULTIPLAYER (Fasa 2a) ----------------
+// Kita sambung ke server Colyseus. Konsep:
+//   - Kita HANTAR kedudukan sendiri ~15 kali sesaat (mesej "gerak").
+//   - Server simpan kedudukan SEMUA orang dalam state, dan hantar kepada kita.
+//   - Untuk setiap pemain lain, kita lukis satu "hantu" (ghost): moto yang
+//     kita tak kawal, cuma ikut kedudukan yang server bagi.
+//
+// Alamat server: localhost masa test dalam komputer sendiri, Render bila online.
+// Boleh tukar guna URL: index.html?server=wss://alamat-lain
+const SERVER_ONLINE='wss://kapcai-server.onrender.com';
+function serverUrl(){
+  const q=new URLSearchParams(location.search).get('server'); if(q) return q;
+  if(location.protocol==='file:' || location.hostname==='localhost' || location.hostname==='127.0.0.1') return 'ws://localhost:2567';
+  return SERVER_ONLINE;
+}
+const SEND_RATE=15;  // berapa kali sesaat kita hantar kedudukan
+const net={room:null, connecting:false, ghosts:new Map(), sendT:0, lastRupa:''};
+const netEl=document.getElementById('netStatus');
+function setNet(st,text){ netEl.dataset.st=st; netEl.textContent=text; }
+setNet('off','Offline');
+
+async function connectNet(){
+  if(net.room || net.connecting) return;
+  if(!window.Colyseus){ setNet('off','Offline · pustaka multiplayer tak dapat dimuat'); return; }
+  net.connecting=true;
+  setNet('wait','Menyambung… server percuma mungkin ambil ~1 minit untuk "bangun"');
+  try{
+    const client=new Colyseus.Client(serverUrl());
+    // joinOrCreate: masuk bilik "lepak" yang ada; kalau takde (atau penuh), buat baru
+    const room=await client.joinOrCreate('lepak',{vehicle:state.vehicle, paint:state.paint});
+    net.room=room; net.lastRupa='';
+    // Tempat mula: server pilih x rawak supaya pemain tak bertindih di satu titik.
+    // Cuma guna kalau kita belum bergerak dari tempat asal bengkel.
+    room.onStateChange.once(st=>{
+      const me=st.players.get(room.sessionId);
+      if(me && Math.abs(vehicleRoot.position.x)<0.5 && Math.abs(vehicleRoot.position.z+1.8)<0.5 && Math.abs(speed)<0.1){
+        vehicleRoot.position.x=state.x=me.x;
+      }
+    });
+    room.onLeave(()=>{ net.room=null; clearGhosts(); setNet('off','Terputus dari server'); });
+    room.onError((code,msg)=>console.warn('Ralat server',code,msg));
+  }catch(err){
+    console.warn('Tak dapat sambung:',err);
+    setNet('off','Offline · tak dapat sambung ke server (main sorang dulu)');
+  }
+  net.connecting=false;
+}
+
+// ---- Hantu (pemain lain) ----
+function makeGhost(p){
+  const body = p.vehicle==='car' ? buildCar() : buildKapcai();
+  if(body.userData.stand){ body.userData.stand.visible=false; body.rotation.x=0; } // kapcai tegak
+  // Cat sendiri untuk setiap hantu: kalau kongsi material, semua moto jadi warna sama
+  const paintMat=HERO.paint.clone(); paintMat.color.set(PAINTS[p.paint][1]);
+  body.traverse(o=>{ if(o.isMesh && o.userData.role==='paint') o.material=paintMat; });
+  const group=new THREE.Group(); group.add(body);
+  const sh=new THREE.Mesh(blob.geometry,blob.material); sh.position.y=0.015;
+  sh.scale.set(body.userData.shadow[0],1,body.userData.shadow[1]); group.add(sh);
+  scene.add(group);
+  return {group, body, vehicle:p.vehicle, paint:p.paint, paintMat};
+}
+function removeGhost(id){
+  const g=net.ghosts.get(id); if(!g) return;
+  scene.remove(g.group);
+  g.body.traverse(o=>{ if(o.isMesh) o.geometry.dispose(); });  // pulangkan memori GPU
+  g.paintMat.dispose(); net.ghosts.delete(id);
+}
+function clearGhosts(){ for(const id of [...net.ghosts.keys()]) removeGhost(id); }
+
+function updateNet(dt){
+  const room=net.room; if(!room) return;
+  // 1. HANTAR kedudukan kita (15 kali sesaat, bukan setiap frame: jimat internet)
+  net.sendT+=dt;
+  if(net.sendT>=1/SEND_RATE){
+    net.sendT=0;
+    room.send('gerak',{x:vehicleRoot.position.x, z:vehicleRoot.position.z, h:state.heading,
+      l:state.vehicle==='kapcai'?vehicles.kapcai.rotation.x:0, s:speed});
+  }
+  const rupa=state.vehicle+':'+state.paint;           // tukar kenderaan/cat? beritahu server
+  if(rupa!==net.lastRupa){ net.lastRupa=rupa; room.send('rupa',{vehicle:state.vehicle, paint:state.paint}); }
+
+  // 2. LUKIS pemain lain ikut state dari server
+  const seen=new Set();
+  room.state.players.forEach((p,id)=>{
+    if(id===room.sessionId) return;                  // itu kita sendiri
+    seen.add(id);
+    let g=net.ghosts.get(id);
+    if(g && g.vehicle!==p.vehicle){ removeGhost(id); g=null; }
+    if(!g){ g=makeGhost(p); net.ghosts.set(id,g); }
+    if(g.paint!==p.paint){ g.paintMat.color.set(PAINTS[p.paint][1]); g.paint=p.paint; }
+    // ⚠️ Fasa 2a: kita LETAK TERUS hantu di kedudukan terbaru. Sebab data sampai
+    // 15 kali sesaat tapi skrin lukis 60 kali sesaat, hantu akan nampak
+    // TERSENTAK-SENTAK. Itu sengaja, dan Fasa 2b (interpolation) akan betulkan.
+    g.group.position.set(p.x, groundY(p.x,p.z), p.z);
+    g.group.rotation.y=p.heading;
+    if(p.vehicle==='kapcai') g.body.rotation.x=p.lean;
+    const u=g.body.userData; u.wheels.forEach(w=>{ w.rotation.z-=p.speed*dt/u.wr; });
+  });
+  for(const id of [...net.ghosts.keys()]) if(!seen.has(id)) removeGhost(id);  // dah keluar
+  const n=room.state.players.size;
+  setNet('on','Online · '+n+' pemain'+(n===1?' (kongsi link untuk ajak kawan)':''));
+}
+
 // ---------------- UI ----------------
 const sw=document.getElementById('swatches');
 PAINTS.forEach((p,i)=>{const b=document.createElement('button'); b.type='button'; b.className='sw'; b.style.background=p[1]; b.setAttribute('aria-label',p[0]); b.title=p[0]; b.addEventListener('click',()=>{state.paint=i; applyPaint(); syncUI();}); sw.appendChild(b);});
@@ -1092,6 +1202,7 @@ function frame(){
     if(auto && !reduce) state.yaw+=dt*0.18;
   }
   updateEngine(dt);  // bunyi enjin (senyap sendiri bila bukan mod tunggang)
+  updateNet(dt);     // multiplayer: hantar kedudukan kita, lukis pemain lain
   // Lampu jalan sebenar (PointLight) mahal, jadi cuma 2. Kita pindahkan
   // dua lampu tu ke tiang yang paling dekat dengan kenderaan. Tiang ada setiap 18 m.
   const lampBase=Math.floor((vehicleRoot.position.x-9)/18)*18+9;

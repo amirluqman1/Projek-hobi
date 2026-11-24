@@ -1,0 +1,10 @@
+# Resipi untuk Render.com: "bina server dari folder server/ dan jalankan".
+# Di Render: New + -> Blueprint -> pilih repo Projek-hobi. Render baca fail ni.
+services:
+  - type: web
+    name: kapcai-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js

@@ -16,7 +16,9 @@ Baca `README.md` dulu untuk visi, keputusan teknikal dan pelan fasa projek ni.
 - Fasa 1 dipecah kecil (1a, 1b, 1c, 1d). Lihat jadual dalam README. **1a dan 1b dah siap**: seksyen `MOD TUNGGANG` dalam `index.html` (input → fizik: laju, stereng, belok, gerak, condong → kamera kejar).
 - 1c siap: pemilik tala `SPEC` sendiri (nilai sekarang pilihan dia, jangan tukar tanpa tanya). Pelanggaran guna `COLLIDERS` (bulatan {x,z,r}) + `collide()`; kedai/tembok laut masih clamp z.
 - 1d siap: gelung `LOOP_ROAD` (CatmullRom) keliling tasik `LAKE`, simpang `JUNCTIONS` x=-44 & 60, pokok InstancedMesh, `groundY()` untuk kaki lima/tasik. Diilhamkan dari suasana Ayer Keroh (pilihan pemilik), bukan peta sebenar.
-- Fasa 1 siap. Seterusnya ikut README: Fasa 2 (multiplayer). Tanya pemilik dulu sebab langkah tu besar.
+- Fasa 1 siap. **Fasa 2 (multiplayer) sedang berjalan**, hosting dipilih: Render percuma (`render.yaml`). 2a: `server/index.js` (bilik `lepak`, mesej `gerak`/`rupa`, state `players`), seksyen `MULTIPLAYER` dalam `index.html` (hantu = pemain lain, belum interpolation).
+- Versi dikunci: server colyseus 0.15.57 + @colyseus/schema 2.0.37; pelanggan colyseus.js **0.15.26** (0.15.28 dist rosak untuk browser, ada require Node).
+- Test multiplayer dalam container: jalankan server tempatan, Playwright `page.route` colyseus.js ke salinan npm (jsdelivr diblok).
 - GitHub Pages dah hidup dari `main`: https://amirluqman1.github.io/Projek-hobi/ . Cara kerja: kerja baru dalam branch, pemilik test guna raw.githack.com/amirluqman1/projek-hobi/<branch>/index.html, kemudian merge ke `main`.
 - Bunyi enjin: seksyen `BUNYI ENJIN` (Web Audio, `ENGINE` per kenderaan, gear dari pecahan `SPEC.top`). Audio cuma boleh mula dalam tekanan butang (`initAudio()`).
 - Pemilik tengah belajar Blender untuk design kapcai sendiri (mungkin kitbash dari model CC0). Model `.glb` nanti ganti `buildKapcai()`; fizik tak perlu diubah.

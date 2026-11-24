@@ -9,6 +9,13 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 
 **Demo semasa: Bengkel Senja.** Satu jalan kedai tepi laut gaya PS2, dengan kapcai dan kereta low-poly yang boleh dipusing, ditukar cat (8 warna), kemasan (berkilat/metalik/matte), rim (chrome/hitam/emas), waktu (tengah hari/senja/malam), dan material (hero berkilat ↔ PS2 rata).
 
+## Server multiplayer (`server/`)
+- Kod server: `server/index.js` (Colyseus 0.15, Node.js). Pelanggan browser guna `colyseus.js@0.15.26`.
+- **Jalankan dalam komputer sendiri:** `cd server && npm install && npm start`, kemudian buka `index.html`. Game sambung ke `ws://localhost:2567`.
+- **Online (Render.com, percuma):** New + → Blueprint → pilih repo ni. Render baca `render.yaml` dan bina server bernama `kapcai-server`.
+  Kalau alamat Render lain dari `kapcai-server.onrender.com`, tukar `SERVER_ONLINE` dalam `index.html`, atau buka game dengan `?server=wss://alamat-anda`.
+- Server percuma "tidur" lepas 15 minit tiada orang. Pemain pertama tunggu ~1 minit.
+
 ## Visi game
 1. **Multiplayer**: satu bilik, maksimum **15 orang**
 2. **Open world**: peta diilhamkan dari Melaka. Sasaran jangka panjang 10 km × 10 km, mula dengan **100 m × 100 m**
@@ -40,7 +47,11 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 | 1c+ | **Pelanggaran**: tiang, tong, tayar (collider bulatan), lantun/gesel, kamera bergegar | ✅ |
 | 1d | **Tasik Ayer Keroh (rekaan)**: jalan berliku keliling tasik (~100 m × 80 m), simpang dari Jalan Pantai, hutan 140 pokok (instancing), wakaf, zon air | ✅ |
 | 1e | **Bunyi enjin** dijana kod (Web Audio): gear, RPM, bunyi langgar, butang senyap | ✅ |
-| 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | ⬜ |
+| 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | 🔨 |
+| 2a | Server Colyseus (`server/`) + pemain lain muncul sebagai "hantu" (masih tersentak-sentak) | 🧪 |
+| 2b | Gerakan licin (interpolation) | ⬜ |
+| 2c | Kod bilik | ⬜ |
+| 2d | Nama atas kepala | ⬜ |
 | 3 | **Lumba**: checkpoint, pemasa, kedudukan | ⬜ |
 | 4 | **Bengkel & kedai**: duit, beli/pasang part, statistik, simpan (Supabase) | ⬜ |
 | 5 | **Voice chat ikut jarak** (LiveKit + PannerNode), dengan mute/block/push-to-talk | ⬜ |
