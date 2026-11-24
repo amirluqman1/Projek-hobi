@@ -278,9 +278,10 @@ const glowMat=new THREE.SpriteMaterial({map:lampGlowTex,blending:THREE.AdditiveB
 const poolTex=glowTex('rgba(255,190,110,.55)','rgba(255,150,60,.18)');
 const poolMat=new THREE.MeshBasicMaterial({map:poolTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0});
 
+const UP_AXIS=new THREE.Vector3(0,1,0);
 // ---------------- world: jalan pantai ----------------
 // COLLIDERS: senarai benda yang boleh dilanggar. Setiap satu cuma BULATAN
-// atas lantai {x, z, r}. Game tak periksa bentuk sebenar (beribu segi tiga),
+// atas lantai {x, z, r}, atau KOTAK {box:[xmin, zmin, xmax, zmax]}. Game tak periksa bentuk sebenar (beribu segi tiga),
 // cuma bentuk ringkas ni. Jauh lebih murah, dan pemain tak perasan bezanya.
 const COLLIDERS=[];
 const L=320;
@@ -294,11 +295,16 @@ addMesh(new THREE.PlaneGeometry(L,0.12).rotateX(-Math.PI/2),lineMat,0,0.012,-3.2
 addMesh(new THREE.PlaneGeometry(L,0.12).rotateX(-Math.PI/2),lineMat,0,0.012,3.25);
 // bahu jalan hitam-putih (kerb)
 const kerbMat=lambert({map:texKerb});
-addMesh(new THREE.BoxGeometry(L,0.18,0.25),kerbMat,0,0.09,-3.72);
+// Simpang ke jalan tasik: kerb & kaki lima sebelah kedai dipotong di x ni
+const JUNCTIONS=[-44,60], ROAD_W=7.2;
+function walkSpans(){ const out=[]; let a=-L/2; for(const j of JUNCTIONS){out.push([a,j-ROAD_W/2]); a=j+ROAD_W/2;} out.push([a,L/2]); return out; }
+// setiap potongan perlukan salinan tekstur sendiri, supaya corak tak "termampat"
+function spanTex(tex,w,rx,ry){const t=tex.clone(); t.needsUpdate=true; t.repeat.set(rx*w/L,ry); return t;}
+for(const [a,b] of walkSpans()) addMesh(new THREE.BoxGeometry(b-a,0.18,0.25),lambert({map:spanTex(texKerb,b-a,150,1)}),(a+b)/2,0.09,-3.72);
 addMesh(new THREE.BoxGeometry(L,0.18,0.25),kerbMat,0,0.09,3.72);
 // kaki lima
 const walkMat=lambert({map:texWalk});
-addMesh(new THREE.BoxGeometry(L,0.18,2.4),walkMat,0,0.09,-5.05);
+for(const [a,b] of walkSpans()) addMesh(new THREE.BoxGeometry(b-a,0.18,2.4),lambert({map:spanTex(texWalk,b-a,120,1)}),(a+b)/2,0.09,-5.05);
 addMesh(new THREE.BoxGeometry(L,0.18,2.0),walkMat,0,0.09,4.85);
 // tembok laut + pasir + laut
 addMesh(bakeAO(new THREE.BoxGeometry(L,0.7,0.35),0,0.7,0.6),lambert({color:0xe8e2d4,vertexColors:true}),0,0.35,6.0);
@@ -306,9 +312,11 @@ addMesh(new THREE.PlaneGeometry(L,12).rotateX(-Math.PI/2),lambert({map:texSand})
 const seaMat=lambert({color:0x3f7f96});
 const sea=addMesh(new THREE.PlaneGeometry(2400,1200).rotateX(-Math.PI/2),seaMat,0,-0.3,618);
 // tanah belakang kedai + bukit jauh
-addMesh(new THREE.PlaneGeometry(L,80).rotateX(-Math.PI/2),lambert({color:0x6b7a44}),0,-0.02,-46);
+// Tanah luas sampai ke kaki bukit. Kenderaan berhenti di z=-86 (dinding halimunan),
+// tapi tanah sambung jauh supaya pemain tak nampak "hujung dunia".
+addMesh(new THREE.PlaneGeometry(L+200,200).rotateX(-Math.PI/2),lambert({color:0x6b7a44}),0,-0.02,-106);
 const hillMat=lambert({color:0x56703f});
-for(let i=0;i<14;i++){const h=12+rand()*20; addMesh(new THREE.ConeGeometry(18+rand()*20,h,6),hillMat,-160+i*25+rand()*10,h/2-2,-75-rand()*40);}
+for(let i=0;i<14;i++){const h=12+rand()*20; addMesh(new THREE.ConeGeometry(18+rand()*20,h,6),hillMat,-160+i*25+rand()*10,h/2-2,-165-rand()*30);} // bukit jauh, di belakang hutan
 
 // rumah kedai (sebelah z<0)
 const shopNames=[['CENDOL GULA MELAKA','#2f6b3a','#fff3c4'],['KEDAI RUNCIT MAJU','#1d4f8f','#ffffff'],['TAYAR & SPORT RIM','#111111','#ffcc33'],['BENGKEL JAYA MOTOR','#c3241f','#ffffff'],['KEDAI MAKAN SINAR','#f1c232','#3a1a00'],['SATAY CELUP','#7a1f6b','#ffffff'],['CAT & SPRAY','#204a5c','#ffffff'],['KEDAI GUNTING','#e8e2d4','#1a1a1a'],['AIS KACANG','#d9534f','#ffffff'],['SERBANEKA 24 JAM','#0f6e6e','#ffffff']];
@@ -331,6 +339,7 @@ shopNames.forEach((s,i)=>{
   // anjung kaki lima
   addMesh(new THREE.BoxGeometry(SHOP_W,0.12,1.3),lambert({color:0x8a4a35}),x,h*0.37,-5.65);
 });
+COLLIDERS.push({box:[-22.4,-16.25,41.6,-6.25]}); // deretan kedai: satu kotak besar
 // tayar bertimbun & tong minyak depan bengkel
 const tyreMat=lambert({color:0x1c1c1e});
 for(let s=0;s<3;s++){ for(let k=0;k<4-s;k++) addMesh(new THREE.TorusGeometry(0.28,0.11,6,12).rotateX(Math.PI/2),tyreMat,-1.9-s*0.65,0.29+k*0.21,-4.6); COLLIDERS.push({x:-1.9-s*0.65,z:-4.6,r:0.39}); }
@@ -362,6 +371,104 @@ for(let x=-140;x<=140;x+=9+rand()*7){
   for(let i=0;i<segs;i++){const seg=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.19,h/segs+0.05,6),trunkMat); const a=lean*(i/segs); px+=Math.sin(a)*h/segs; py+=Math.cos(a)*h/segs; seg.position.set(px,py-h/segs/2,0); seg.rotation.z=-a; palm.add(seg);}
   for(let f=0;f<8;f++){const fr=new THREE.Mesh(new THREE.PlaneGeometry(2.6,0.55),frondMat); fr.geometry.translate(1.3,0,0); fr.position.set(px,py,0); fr.rotation.set(-0.5,f/8*Math.PI*2,-0.45-rand()*0.3,'YXZ'); palm.add(fr);}
   palm.position.set(x,-0.1,8.5+rand()*6); palm.rotation.y=rand()*6.28; world.add(palm);
+}
+
+// ---------------- world: Tasik Ayer Keroh (rekaan) : Fasa 1d ----------------
+// Diilhamkan dari SUASANA Ayer Keroh (tasik, hutan, jalan berliku), bukan
+// salinan peta sebenar. Peta sebenar nanti guna OpenStreetMap (Fasa 6).
+//
+// Jalan dibina guna "lengkung" (CatmullRomCurve3): kita bagi beberapa titik
+// kawalan, three.js lukis garisan licin yang lalu semua titik tu.
+// Macam main "sambung titik", tapi garisannya melengkung, bukan lurus.
+const LOOP_ROAD=new THREE.CatmullRomCurve3([
+  [-44,-3.6],[-44,-20],[-48,-40],[-40,-62],[-20,-78],[10,-82],
+  [38,-76],[58,-58],[64,-38],[60,-20],[60,-3.6]
+].map(p=>new THREE.Vector3(p[0],0,p[1])));
+const roadPts=LOOP_ROAD.getSpacedPoints(300);   // 301 titik, jarak sama rata
+
+// "Reben" jalan: untuk setiap titik, cari arah jalan (tangent), kemudian
+// letak satu bucu di kiri dan satu di kanan. Sambung jadi jalur segi tiga.
+function ribbon(pts,width,y,mat){
+  const pos=[], uv=[], idx=[]; let dist=0;
+  for(let i=0;i<pts.length;i++){
+    const a=pts[Math.max(0,i-1)], b=pts[Math.min(pts.length-1,i+1)];
+    let tx=b.x-a.x, tz=b.z-a.z; const l=Math.hypot(tx,tz); tx/=l; tz/=l;
+    const nx=-tz, nz=tx;                       // tegak lurus dengan arah jalan
+    if(i>0) dist+=pts[i].distanceTo(pts[i-1]);
+    pos.push(pts[i].x+nx*width/2,y,pts[i].z+nz*width/2, pts[i].x-nx*width/2,y,pts[i].z-nz*width/2);
+    uv.push(0,dist/width, 1,dist/width);       // tekstur berulang ikut panjang jalan
+    if(i>0){const k=i*2; idx.push(k-2,k-1,k, k-1,k+1,k);}
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat); world.add(m); return m;
+}
+const texRoad2=texAsphalt.clone(); texRoad2.needsUpdate=true; texRoad2.repeat.set(1,1);
+ribbon(roadPts,ROAD_W,0.004,lambert({map:texRoad2,side:THREE.DoubleSide}));
+// garisan putus tengah: satu jalur kecil setiap 6 m, dipusing ikut arah jalan
+{ let acc=0;
+  for(let i=1;i<roadPts.length;i++){
+    acc+=roadPts[i].distanceTo(roadPts[i-1]);
+    if(acc<6) continue; acc=0;
+    const a=roadPts[i-1], b=roadPts[i];
+    const dash=addMesh(new THREE.PlaneGeometry(3,0.14).rotateX(-Math.PI/2),lineMat,b.x,0.012,b.z);
+    dash.rotation.y=Math.atan2(-(b.z-a.z),b.x-a.x);
+  }
+}
+
+// Tasik: bulatan yang dipanjangkan jadi bujur (elips).
+const LAKE={x:10,z:-45,rx:28,rz:18};
+addMesh(new THREE.CircleGeometry(1,40).rotateX(-Math.PI/2),lambert({map:texSand}),LAKE.x,0.0,LAKE.z).scale.set(LAKE.rx+2.5,1,LAKE.rz+2.5); // tebing pasir
+// Air sedikit "menyala" sendiri (emissive) supaya kekal biru walaupun cahaya senja oren
+const lakeMat=lambert({color:0x24607a,emissive:0x0b3446});
+// Air 4 cm atas pasir. Kalau terlalu rapat (1 cm), GPU keliru mana satu di depan
+// dan permukaan "berkelip" bercampur. Masalah ni dipanggil Z-FIGHTING.
+addMesh(new THREE.CircleGeometry(1,40).rotateX(-Math.PI/2),lakeMat,LAKE.x,0.04,LAKE.z).scale.set(LAKE.rx,1,LAKE.rz);
+function inLake(x,z){ const a=(x-LAKE.x)/LAKE.rx, b=(z-LAKE.z)/LAKE.rz; return a*a+b*b<1; } // formula elips
+
+// Wakaf tepi tasik: 4 tiang, lantai, bumbung piramid
+{ const wx=10, wz=-69.5, woodMat=lambert({color:0x7a5236});
+  for(const [dx,dz] of [[-1.8,-1.8],[1.8,-1.8],[-1.8,1.8],[1.8,1.8]]) addMesh(new THREE.BoxGeometry(0.18,2.6,0.18),woodMat,wx+dx,1.3,wz+dz);
+  addMesh(bakeAO(new THREE.BoxGeometry(4.2,0.25,4.2),0,0.25,0.6),lambert({color:0x9a6b45,vertexColors:true}),wx,0.5,wz);
+  addMesh(new THREE.ConeGeometry(3.6,1.8,4).rotateY(Math.PI/4),roofMat,wx,3.5,wz);
+  COLLIDERS.push({box:[wx-2.1,wz-2.1,wx+2.1,wz+2.1]});
+}
+// Papan tanda di simpang
+{ const sx=-50.5, sz=-12;
+  const sm=new THREE.MeshLambertMaterial({map:signTex('TASIK AYER KEROH','#1f5c3a','#ffffff')});
+  addMesh(new THREE.BoxGeometry(4,0.8,0.08),sm,sx,2.4,sz);
+  for(const dx of [-1.6,1.6]) addMesh(new THREE.BoxGeometry(0.1,2.4,0.1),poleMat,sx+dx,1.2,sz);
+  COLLIDERS.push({box:[sx-2,sz-0.2,sx+2,sz+0.2]});
+}
+
+// Hutan: 1 pokok = batang + daun. 140 pokok = 280 objek = 280 "draw call"
+// (arahan lukis ke GPU). Terlalu banyak untuk phone!
+// INSTANCING: bagi GPU satu bentuk + senarai kedudukan, dia lukis semua
+// sekali gus. 140 pokok jadi cuma 2 draw call (1 batang, 1 daun).
+{ const spots=[];
+  const nearRoad=(x,z,m)=>roadPts.some(p=>Math.hypot(p.x-x,p.z-z)<m);
+  for(let tries=0;tries<600 && spots.length<140;tries++){
+    const x=-140+rand()*280, z=-84+rand()*76, s=0.8+rand()*0.6;
+    if(z>-9) continue;                                         // jauh dari kaki lima
+    if(x>-26 && x<45 && z>-20) continue;                       // belakang kedai
+    if(nearRoad(x,z,6.5)) continue;                            // bukan atas jalan
+    const a=(x-LAKE.x)/(LAKE.rx+5), b=(z-LAKE.z)/(LAKE.rz+5); if(a*a+b*b<1) continue; // bukan dalam tasik
+    if(Math.hypot(x-10,z+69.5)<5 || Math.hypot(x+50.5,z+12)<4) continue;            // wakaf, papan tanda
+    spots.push([x,z,s]);
+  }
+  const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16,0.24,2.4,6).translate(0,1.2,0),lambert({color:0x6b4a33}),spots.length);
+  const leaves=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.7,0).translate(0,3.3,0),lambert({color:0xffffff}),spots.length);
+  const mtx=new THREE.Matrix4(), q=new THREE.Quaternion(), col=new THREE.Color();
+  spots.forEach(([x,z,s],i)=>{
+    q.setFromAxisAngle(UP_AXIS,rand()*6.28);
+    mtx.compose(new THREE.Vector3(x,0,z),q,new THREE.Vector3(s,s,s));
+    trunks.setMatrixAt(i,mtx); leaves.setMatrixAt(i,mtx);
+    leaves.setColorAt(i,col.setHSL(0.27+rand()*0.08,0.45,0.25+rand()*0.12));  // hijau berbeza sikit setiap pokok
+    COLLIDERS.push({x,z,r:0.28*s});
+  });
+  world.add(trunks); world.add(leaves);
 }
 
 // ---------------- environment map (pantulan untuk material hero) ----------------
@@ -640,8 +747,15 @@ const G=9.8;          // graviti (m/s²), untuk kira condong
 const MAX_LEAN=0.7;   // condong paling banyak ≈ 40°
 // Sempadan dunia (sementara, sebelum ada pelanggaran sebenar):
 const ROAD_END=150;   // hujung jalan (meter dari tengah). Jalan panjang 320 m.
-const SIDE_MIN=-5.9, SIDE_MAX=5.55; // depan kedai (-z) dan tembok laut (+z)
-const KERB=3.6;       // lepas garisan ni dah atas kaki lima (tinggi 0.18 m)
+const Z_MIN=-86, SIDE_MAX=5.55; // hujung hutan (-z) dan tembok laut (+z)
+// Tinggi lantai di satu titik: kaki lima 0.18 m, dalam tasik -0.3 m (terendam), lain 0.
+function groundY(x,z){
+  if(inLake(x,z)) return -0.3;
+  const inJunction=JUNCTIONS.some(j=>Math.abs(x-j)<ROAD_W/2);
+  if(z<-3.6 && z>-6.25 && !inJunction) return 0.18;  // kaki lima depan kedai
+  if(z>3.6) return 0.18;                             // kaki lima tepi laut
+  return 0;
+}
 const RIDE_CAM={pitch:0.2};
 
 const input={gas:false, brake:false, left:false, right:false};  // keadaan butang SEKARANG
@@ -689,8 +803,14 @@ function collide(){
   for(const off of u.hit.offs){
     for(const o of COLLIDERS){
       const cx=vehicleRoot.position.x+fx*off, cz=vehicleRoot.position.z+fz*off;
-      const dx=cx-o.x, dz=cz-o.z;
-      const d=Math.hypot(dx,dz), min=u.hit.r+o.r;
+      // Bulatan: titik paling dekat = pusat dia.
+      // Kotak: titik paling dekat = "kepit" (clamp) pusat kita ke dalam kotak.
+      //   Contoh: kotak x dari 0 ke 10, kita di x=13 -> titik terdekat x=10.
+      let px,pz,rr;
+      if(o.box){ px=Math.max(o.box[0],Math.min(o.box[2],cx)); pz=Math.max(o.box[1],Math.min(o.box[3],cz)); rr=0; }
+      else     { px=o.x; pz=o.z; rr=o.r; }
+      const dx=cx-px, dz=cz-pz;
+      const d=Math.hypot(dx,dz), min=u.hit.r+rr;
       if(d>=min || d<1e-6) continue;           // tak bertindih: selamat
       const nx=dx/d, nz=dz/d;                  // arah normal (panjang 1)
       vehicleRoot.position.x+=nx*(min-d);      // 1. tolak keluar
@@ -748,16 +868,17 @@ function updateRide(dt){
   let x=vehicleRoot.position.x + Math.cos(state.heading)*speed*dt;
   let z=vehicleRoot.position.z - Math.sin(state.heading)*speed*dt;
   if(Math.abs(x)>ROAD_END){ x=Math.sign(x)*ROAD_END; speed=0; }   // hujung jalan
-  if(z<SIDE_MIN || z>SIDE_MAX){                                    // geser kedai / tembok
-    z=Math.max(SIDE_MIN, Math.min(SIDE_MAX, z));
+  if(z<Z_MIN || z>SIDE_MAX){                                       // hujung hutan / tembok laut
+    z=Math.max(Z_MIN, Math.min(SIDE_MAX, z));
     speed -= speed*3*dt;  // bergesel = hilang laju
   }
   vehicleRoot.position.x=x; vehicleRoot.position.z=z;
   collide();   // periksa tiang/tong. Mungkin anjak kenderaan sikit.
   state.x=vehicleRoot.position.x; state.z=vehicleRoot.position.z;
-  // naik kaki lima: tinggi 0.18 m (dilembutkan supaya tak "lompat")
-  const groundY = Math.abs(z)>KERB ? 0.18 : 0;
-  vehicleRoot.position.y += (groundY-vehicleRoot.position.y)*(1-Math.exp(-15*dt));
+  // Tinggi ikut lantai (kaki lima / tasik), dilembutkan supaya tak "lompat"
+  vehicleRoot.position.y += (groundY(x,z)-vehicleRoot.position.y)*(1-Math.exp(-8*dt));
+  // Dalam tasik: air "tarik" kenderaan. Bukan dinding, tapi ZON yang ubah fizik.
+  if(inLake(x,z)) speed -= speed*2.5*dt;
 
   // (e) CONDONG
   if(state.vehicle==='kapcai'){
@@ -831,6 +952,7 @@ setMode(state.mode);
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();});
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clock=new THREE.Clock(); const tmpV=new THREE.Vector3();
+const camFrom=new THREE.Vector3(), camTo=new THREE.Vector3(), camStep=new THREE.Vector3();
 function frame(){
   requestAnimationFrame(frame);
   const dt=Math.min(clock.getDelta(),0.05);
@@ -871,10 +993,18 @@ function frame(){
   const cp=Math.cos(state.pitch);
   camera.position.set(target.x+Math.sin(state.yaw)*cp*state.dist, target.y+Math.sin(state.pitch)*state.dist, target.z+Math.cos(state.yaw)*cp*state.dist);
   if(camera.position.y<0.15) camera.position.y=0.15;
-  // Jangan bagi kamera tembus masuk dalam kedai (dinding depan kedai di z = -6.25).
-  // Ni cara "murah". Game besar hantar sinar (raycast) dari kenderaan ke kamera
-  // dan tarik kamera ke depan kalau sinar tu langgar dinding.
-  if(riding && camera.position.z<-6.0) camera.position.z=-6.0;
+  // Jangan bagi kamera tembus masuk bangunan. Kita "berjalan" dari kenderaan
+  // ke kamera dalam 12 langkah kecil. Kalau satu langkah masuk dalam kotak
+  // bangunan, kamera diletak di langkah sebelum tu. Ni versi ringkas "raycast".
+  if(riding){
+    camFrom.copy(target); camTo.copy(camera.position);
+    for(let i=1;i<=12;i++){
+      camStep.lerpVectors(camFrom,camTo,i/12);
+      if(COLLIDERS.some(o=>o.box && camStep.x>o.box[0]-0.3 && camStep.x<o.box[2]+0.3 && camStep.z>o.box[1]-0.3 && camStep.z<o.box[3]+0.3)){
+        camera.position.lerpVectors(camFrom,camTo,(i-1)/12); break;
+      }
+    }
+  }
   camera.lookAt(target);
   // Gegaran kamera: anjak kamera rawak sikit, makin lama makin lemah.
   // Trik murah yang buat perlanggaran rasa "berat".
