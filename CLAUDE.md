@@ -14,6 +14,8 @@ Baca `README.md` dulu untuk visi, keputusan teknikal dan pelan fasa projek ni.
 - Satu langkah kecil yang **boleh dimain** setiap kali. Elak buat banyak sistem serentak.
 - Ikut **Peraturan projek** dalam README: takde jenama sebenar, takde aset dari game lain, kredit OSM, server pegang duit.
 - Fasa 1 dipecah kecil (1a, 1b, 1c, 1d). Lihat jadual dalam README. **1a dan 1b dah siap**: seksyen `MOD TUNGGANG` dalam `index.html` (input → fizik: laju, stereng, belok, gerak, condong → kamera kejar).
-- Langkah seterusnya: **1c**, tala rasa arcade (pecutan, geseran, brek). Belum ada pelanggaran dengan tiang/pokok; sempadan dunia cuma clamp z.
+- 1c siap: pemilik tala `SPEC` sendiri (nilai sekarang pilihan dia, jangan tukar tanpa tanya). Pelanggaran guna `COLLIDERS` (bulatan {x,z,r}) + `collide()`; kedai/tembok laut masih clamp z.
+- Langkah seterusnya: **1d**, peta 100 m × 100 m + kawalan sentuh penuh.
+- Pemilik test atas phone guna raw.githack.com (branch `fasa-1a-tunggang`), belum merge ke `main`.
 - Pemilik tengah belajar Blender untuk design kapcai sendiri (mungkin kitbash dari model CC0). Model `.glb` nanti ganti `buildKapcai()`; fizik tak perlu diubah.
 - Nota test: cdnjs diblok dalam container cloud. Untuk test dengan Playwright, ambil `three@0.128.0` dari npm dan `page.route` ke fail tu.

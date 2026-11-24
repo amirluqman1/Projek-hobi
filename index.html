@@ -279,6 +279,10 @@ const poolTex=glowTex('rgba(255,190,110,.55)','rgba(255,150,60,.18)');
 const poolMat=new THREE.MeshBasicMaterial({map:poolTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0});
 
 // ---------------- world: jalan pantai ----------------
+// COLLIDERS: senarai benda yang boleh dilanggar. Setiap satu cuma BULATAN
+// atas lantai {x, z, r}. Game tak periksa bentuk sebenar (beribu segi tiga),
+// cuma bentuk ringkas ni. Jauh lebih murah, dan pemain tak perasan bezanya.
+const COLLIDERS=[];
 const L=320;
 function addMesh(geo,mat,x,y,z,parent){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);(parent||world).add(m);return m;}
 // jalan (z -3.6..3.6)
@@ -329,19 +333,21 @@ shopNames.forEach((s,i)=>{
 });
 // tayar bertimbun & tong minyak depan bengkel
 const tyreMat=lambert({color:0x1c1c1e});
-for(let s=0;s<3;s++)for(let k=0;k<4-s;k++) addMesh(new THREE.TorusGeometry(0.28,0.11,6,12).rotateX(Math.PI/2),tyreMat,-1.9-s*0.65,0.29+k*0.21,-4.6);
+for(let s=0;s<3;s++){ for(let k=0;k<4-s;k++) addMesh(new THREE.TorusGeometry(0.28,0.11,6,12).rotateX(Math.PI/2),tyreMat,-1.9-s*0.65,0.29+k*0.21,-4.6); COLLIDERS.push({x:-1.9-s*0.65,z:-4.6,r:0.39}); }
 addMesh(bakeAO(new THREE.CylinderGeometry(0.3,0.3,0.9,10),-0.45,0.45,0.55),lambert({color:0x2b5ea8,vertexColors:true}),2.3,0.63,-4.5);
+COLLIDERS.push({x:2.3,z:-4.5,r:0.3}); // tong minyak
 
 // tiang elektrik + wayar (kaki lima z<0)
 const poleMat=lambert({color:0x9a958c}), wireMat=new THREE.LineBasicMaterial({color:0x18181a});
 const poleXs=[]; for(let x=-140;x<=140;x+=26) poleXs.push(x+5);
-poleXs.forEach(x=>{ addMesh(new THREE.CylinderGeometry(0.09,0.13,8,6),poleMat,x,4.1,-4.4); addMesh(new THREE.BoxGeometry(0.1,0.1,1.2),poleMat,x,7.6,-4.4); });
+poleXs.forEach(x=>{ COLLIDERS.push({x,z:-4.4,r:0.15}); addMesh(new THREE.CylinderGeometry(0.09,0.13,8,6),poleMat,x,4.1,-4.4); addMesh(new THREE.BoxGeometry(0.1,0.1,1.2),poleMat,x,7.6,-4.4); });
 for(let i=0;i<poleXs.length-1;i++){ for(const dz of [-0.5,0,0.5]){ const pts=[]; for(let t=0;t<=12;t++){const u=t/12; pts.push(new THREE.Vector3(poleXs[i]+(poleXs[i+1]-poleXs[i])*u,7.65-0.9*(1-Math.pow(2*u-1,2)),-4.4+dz));} world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),wireMat)); } }
 
 // lampu jalan (kaki lima z>0) dengan lengan ke jalan
 const lampHeadMat=new THREE.MeshLambertMaterial({color:0x333333,emissive:0xffc070,emissiveIntensity:0});
 const lampGlows=[], lampPools=[];
 for(let x=-135;x<=135;x+=18){
+  COLLIDERS.push({x,z:4.5,r:0.12}); // tiang lampu
   addMesh(new THREE.CylinderGeometry(0.07,0.1,6.6,6),poleMat,x,3.3,4.5);
   addMesh(new THREE.BoxGeometry(0.08,0.08,1.9),poleMat,x,6.55,3.6);
   addMesh(new THREE.BoxGeometry(0.5,0.12,0.28),lampHeadMat,x,6.45,2.7);
@@ -441,7 +447,8 @@ function buildCar(){
     part(w,new THREE.CylinderGeometry(0.05,0.05,0.04,8).rotateX(Math.PI/2),'rim',0,0,sgn*0.13);
     for(let k=0;k<5;k++){const a=k/5*Math.PI*2; part(w,new THREE.BoxGeometry(0.17,0.04,0.025),'rim',Math.cos(a)*0.11,Math.sin(a)*0.11,sgn*0.128,0,0,a);}
   }
-  g.userData={target:0.75,shadow:[5.2,2.6],headPos:V(2.1,0.69,0),dist:5.8,wheels,wr};
+  g.userData={target:0.75,shadow:[5.2,2.6],headPos:V(2.1,0.69,0),dist:5.8,wheels,wr,
+    hit:{r:0.8, offs:[1.25,0,-1.25]}}; // 3 bulatan sepanjang badan kereta
   return g;
 }
 
@@ -506,7 +513,8 @@ function buildKapcai(){
   const stand=rod(g,V(-0.1,0.3,-0.12),V(-0.05,0.02,-0.34),0.014,'dark');
   g.rotation.x=-0.13; // senget ke kiri, atas tongkat sisi (tongkat di sebelah -z)
   g.position.y=0.02;
-  g.userData={target:0.72,shadow:[2.4,1.0],headPos:V(0.62,0.96,0),dist:3.6,wheels,wr,stand};
+  g.userData={target:0.72,shadow:[2.4,1.0],headPos:V(0.62,0.96,0),dist:3.6,wheels,wr,stand,
+    hit:{r:0.3, offs:[0.55,0,-0.55]}}; // 3 bulatan kecil: depan, tengah, belakang
   return g;
 }
 
@@ -660,6 +668,45 @@ document.querySelectorAll('.pad').forEach(b=>{
   b.addEventListener('contextmenu',e=>e.preventDefault()); // elak menu "tekan lama" phone
 });
 
+// ---- PELANGGARAN ----
+// Kenderaan diwakili beberapa bulatan sepanjang badan (lihat userData.hit).
+// Kapcai panjang 2 m tapi kurus. Satu bulatan besar = tepi badan tembus
+// tiang dari sisi; bulatan kecil berderet ikut bentuk dia dengan lebih baik.
+//
+// Untuk setiap bulatan kenderaan vs setiap bulatan collider:
+//   jarak antara pusat < jejari1 + jejari2  ->  BERTINDIH = langgar!
+// Bila langgar:
+//   1. TOLAK keluar: anjak kenderaan sejauh bahagian yang bertindih,
+//      ikut arah dari tiang ke kenderaan (arah "normal").
+//   2. LAJU: langgar berdepan = lantun ke belakang; langgar serong = gesel,
+//      hilang sikit laju je.
+let shake=0;  // kuat gegaran kamera (hilang sendiri)
+function collide(){
+  const u=vehicles[state.vehicle].userData, h=state.heading;
+  const fx=Math.cos(h), fz=-Math.sin(h);       // arah depan kenderaan
+  const dir=Math.sign(speed);                  // +1 ke depan, -1 undur
+  let worst=0;
+  for(const off of u.hit.offs){
+    for(const o of COLLIDERS){
+      const cx=vehicleRoot.position.x+fx*off, cz=vehicleRoot.position.z+fz*off;
+      const dx=cx-o.x, dz=cz-o.z;
+      const d=Math.hypot(dx,dz), min=u.hit.r+o.r;
+      if(d>=min || d<1e-6) continue;           // tak bertindih: selamat
+      const nx=dx/d, nz=dz/d;                  // arah normal (panjang 1)
+      vehicleRoot.position.x+=nx*(min-d);      // 1. tolak keluar
+      vehicleRoot.position.z+=nz*(min-d);
+      // Dot product: berapa "tepat" kita menghala ke tiang.
+      // 1 = betul-betul berdepan, 0 = lalu tepi je, negatif = tengah menjauh.
+      const head=-(fx*nx+fz*nz)*dir;
+      if(head<=0) continue;
+      worst=Math.max(worst, Math.abs(speed)*head);
+      if(head>0.7) speed=-speed*0.3;           // 2. berdepan: lantun
+      else speed*=1-head;                      //    serong: gesel
+    }
+  }
+  if(worst>2) shake=Math.min(0.35, worst*0.02); // langgar kuat = kamera bergegar
+}
+
 // ---- 2. FIZIK ----
 // dt = berapa saat berlalu sejak frame lepas (biasanya ~0.016 s).
 // Semua kiraan didarab dengan dt supaya game sama laju walaupun
@@ -705,7 +752,9 @@ function updateRide(dt){
     z=Math.max(SIDE_MIN, Math.min(SIDE_MAX, z));
     speed -= speed*3*dt;  // bergesel = hilang laju
   }
-  vehicleRoot.position.x=state.x=x; vehicleRoot.position.z=state.z=z;
+  vehicleRoot.position.x=x; vehicleRoot.position.z=z;
+  collide();   // periksa tiang/tong. Mungkin anjak kenderaan sikit.
+  state.x=vehicleRoot.position.x; state.z=vehicleRoot.position.z;
   // naik kaki lima: tinggi 0.18 m (dilembutkan supaya tak "lompat")
   const groundY = Math.abs(z)>KERB ? 0.18 : 0;
   vehicleRoot.position.y += (groundY-vehicleRoot.position.y)*(1-Math.exp(-15*dt));
@@ -827,6 +876,12 @@ function frame(){
   // dan tarik kamera ke depan kalau sinar tu langgar dinding.
   if(riding && camera.position.z<-6.0) camera.position.z=-6.0;
   camera.lookAt(target);
+  // Gegaran kamera: anjak kamera rawak sikit, makin lama makin lemah.
+  // Trik murah yang buat perlanggaran rasa "berat".
+  if(shake>0){
+    camera.position.x+=(Math.random()-.5)*shake; camera.position.y+=(Math.random()-.5)*shake;
+    shake=Math.max(0, shake-dt*1.2);
+  }
   sky.position.copy(camera.position);
   // lampu depan kenderaan aktif
   const v=vehicles[state.vehicle]; tmpV.copy(v.userData.headPos); v.localToWorld(tmpV);

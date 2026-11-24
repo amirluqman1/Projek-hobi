@@ -36,7 +36,8 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 | 1 | Peta 100 m × 100 m, **satu kapcai boleh dibawa** (fizik + kamera kenderaan) | 🔨 |
 | 1a | Tekan **Tunggang**: bawa depan/belakang atas Jalan Pantai, kamera kejar, meter laju, butang skrin phone | ✅ |
 | 1b | Belok (A/D, ←/→, butang ◀ ▶) + kapcai condong ikut fizik sebenar, kereta goyang ke luar | ✅ |
-| 1c | Rasa arcade: tala pecutan, geseran, brek | ⬜ |
+| 1c | Rasa arcade: tala `SPEC` (dibuat sendiri: top 40, accel 15, brake 90, turn 1.5) | ✅ |
+| 1c+ | **Pelanggaran**: tiang, tong, tayar (collider bulatan), lantun/gesel, kamera bergegar | ✅ |
 | 1d | Peta 100 m × 100 m + kawalan sentuh penuh | ⬜ |
 | 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | ⬜ |
 | 3 | **Lumba**: checkpoint, pemasa, kedudukan | ⬜ |
