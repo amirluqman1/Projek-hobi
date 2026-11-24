@@ -17,6 +17,7 @@ Baca `README.md` dulu untuk visi, keputusan teknikal dan pelan fasa projek ni.
 - 1c siap: pemilik tala `SPEC` sendiri (nilai sekarang pilihan dia, jangan tukar tanpa tanya). Pelanggaran guna `COLLIDERS` (bulatan {x,z,r}) + `collide()`; kedai/tembok laut masih clamp z.
 - 1d siap: gelung `LOOP_ROAD` (CatmullRom) keliling tasik `LAKE`, simpang `JUNCTIONS` x=-44 & 60, pokok InstancedMesh, `groundY()` untuk kaki lima/tasik. Diilhamkan dari suasana Ayer Keroh (pilihan pemilik), bukan peta sebenar.
 - Fasa 1 siap. Seterusnya ikut README: Fasa 2 (multiplayer). Tanya pemilik dulu sebab langkah tu besar.
-- Pemilik test atas phone guna raw.githack.com (branch `fasa-1a-tunggang`), belum merge ke `main`.
+- GitHub Pages dah hidup dari `main`: https://amirluqman1.github.io/Projek-hobi/ . Cara kerja: kerja baru dalam branch, pemilik test guna raw.githack.com/amirluqman1/projek-hobi/<branch>/index.html, kemudian merge ke `main`.
+- Bunyi enjin: seksyen `BUNYI ENJIN` (Web Audio, `ENGINE` per kenderaan, gear dari pecahan `SPEC.top`). Audio cuma boleh mula dalam tekanan butang (`initAudio()`).
 - Pemilik tengah belajar Blender untuk design kapcai sendiri (mungkin kitbash dari model CC0). Model `.glb` nanti ganti `buildKapcai()`; fizik tak perlu diubah.
 - Nota test: cdnjs diblok dalam container cloud. Untuk test dengan Playwright, ambil `three@0.128.0` dari npm dan `page.route` ke fail tu.

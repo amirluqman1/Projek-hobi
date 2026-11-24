@@ -39,6 +39,7 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 | 1c | Rasa arcade: tala `SPEC` (dibuat sendiri: top 40, accel 15, brake 90, turn 1.5) | ✅ |
 | 1c+ | **Pelanggaran**: tiang, tong, tayar (collider bulatan), lantun/gesel, kamera bergegar | ✅ |
 | 1d | **Tasik Ayer Keroh (rekaan)**: jalan berliku keliling tasik (~100 m × 80 m), simpang dari Jalan Pantai, hutan 140 pokok (instancing), wakaf, zon air | ✅ |
+| 1e | **Bunyi enjin** dijana kod (Web Audio): gear, RPM, bunyi langgar, butang senyap | 🧪 |
 | 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | ⬜ |
 | 3 | **Lumba**: checkpoint, pemasa, kedudukan | ⬜ |
 | 4 | **Bengkel & kedai**: duit, beli/pasang part, statistik, simpan (Supabase) | ⬜ |

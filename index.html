@@ -83,11 +83,15 @@ body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webki
 /* ---- Mod Tunggang (Fasa 1a) ---- */
 .ride-btn{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--signal-ink);background:var(--signal);border:0;border-radius:12px;padding:12px;cursor:pointer;}
 .ride-btn:focus-visible,.garage-btn:focus-visible,.pad:focus-visible{outline:2px solid #fff;outline-offset:2px;}
-.garage-btn{position:fixed;z-index:3;top:calc(14px + var(--sat));right:calc(14px + var(--sar));font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;}
-.speedo{position:fixed;z-index:2;left:calc(16px + var(--sal));bottom:calc(56px + var(--sab));background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 16px;display:grid;justify-items:start;pointer-events:none;font-variant-numeric:tabular-nums;}
+.ride-top{position:fixed;z-index:3;top:calc(14px + var(--sat));right:calc(14px + var(--sar));display:flex;gap:8px;}
+.mute-btn{font-size:16px;line-height:1;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:8px 12px;cursor:pointer;}
+.mute-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+.garage-btn{font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 16px;cursor:pointer;}
+.speedo{position:fixed;z-index:2;left:calc(16px + var(--sal));bottom:calc(56px + var(--sab));background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:10px 44px 10px 16px;display:grid;justify-items:start;pointer-events:none;font-variant-numeric:tabular-nums;}
 .speedo b{font-family:var(--font-display);font-size:44px;font-weight:700;line-height:1;}
 .speedo span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
 .speedo .rev{color:var(--signal);}
+.speedo i{position:absolute;top:9px;right:12px;font-style:normal;font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--signal);}
 .pads{position:fixed;z-index:3;bottom:calc(16px + var(--sab));display:flex;gap:12px;}
 .pads-pedal{right:calc(16px + var(--sar));}
 .pads-steer{left:calc(16px + var(--sal));}
@@ -100,7 +104,7 @@ body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webki
 .pad.gas{background:var(--signal);color:var(--signal-ink);border-color:transparent;}
 .pad.held{transform:scale(.94);filter:brightness(1.2);}
 body.riding .panel{display:none;}
-body:not(.riding) .garage-btn, body:not(.riding) .speedo, body:not(.riding) .pads{display:none;}
+body:not(.riding) .ride-top, body:not(.riding) .speedo, body:not(.riding) .pads{display:none;}
 
 @media (max-width:760px){
   .pad{width:72px;height:72px;}
@@ -178,8 +182,11 @@ body:not(.riding) .garage-btn, body:not(.riding) .speedo, body:not(.riding) .pad
 <div class="hint" id="hint">Seret untuk pusing · roda atau cubit untuk zum</div>
 
 <!-- Mod Tunggang: hanya nampak bila sedang bawa kenderaan -->
-<button type="button" class="garage-btn" id="btnGarage">◀ Bengkel</button>
-<div class="speedo" aria-live="off"><b id="speedNum">0</b><span id="speedUnit">km/j</span></div>
+<div class="ride-top">
+  <button type="button" class="mute-btn" id="btnMute" aria-label="Senyapkan bunyi">🔊</button>
+  <button type="button" class="garage-btn" id="btnGarage">◀ Bengkel</button>
+</div>
+<div class="speedo" aria-live="off"><b id="speedNum">0</b><span id="speedUnit">km/j</span><i id="gearNum" title="Gear">N</i></div>
 <div class="pads pads-steer">
   <button type="button" class="pad" data-k="left" aria-label="Belok kiri">◀</button>
   <button type="button" class="pad" data-k="right" aria-label="Belok kanan">▶</button>
@@ -767,7 +774,7 @@ vehicleRoot.position.set(state.x,0,state.z); vehicleRoot.rotation.y=state.headin
 // ---- 1. INPUT: papan kekunci ----
 // Kita cuma simpan "butang tengah ditekan ke tak". Fizik yang baca nanti.
 const KEYS={KeyW:'gas',ArrowUp:'gas',KeyS:'brake',ArrowDown:'brake',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
-addEventListener('keydown',e=>{const k=KEYS[e.code]; if(k && state.mode==='ride'){input[k]=true; e.preventDefault();}});
+addEventListener('keydown',e=>{const k=KEYS[e.code]; if(k && state.mode==='ride'){initAudio(); input[k]=true; e.preventDefault();}});
 addEventListener('keyup',e=>{const k=KEYS[e.code]; if(k) input[k]=false;});
 addEventListener('blur',()=>{for(const k in input) input[k]=false;}); // tukar tab = lepas semua butang
 
@@ -775,7 +782,7 @@ addEventListener('blur',()=>{for(const k in input) input[k]=false;}); // tukar t
 // Tekan dan tahan = true, lepas jari = false.
 document.querySelectorAll('.pad').forEach(b=>{
   const k=b.dataset.k;
-  const on=e=>{e.preventDefault(); input[k]=true; b.classList.add('held'); try{b.setPointerCapture(e.pointerId);}catch(err){}};
+  const on=e=>{e.preventDefault(); initAudio(); input[k]=true; b.classList.add('held'); try{b.setPointerCapture(e.pointerId);}catch(err){}};
   const off=()=>{input[k]=false; b.classList.remove('held');};
   b.addEventListener('pointerdown',on);
   b.addEventListener('pointerup',off); b.addEventListener('pointercancel',off); b.addEventListener('lostpointercapture',off);
@@ -824,7 +831,7 @@ function collide(){
       else speed*=1-head;                      //    serong: gesel
     }
   }
-  if(worst>2) shake=Math.min(0.35, worst*0.02); // langgar kuat = kamera bergegar
+  if(worst>2){ shake=Math.min(0.35, worst*0.02); playThud(worst); } // langgar kuat = kamera bergegar + bunyi
 }
 
 // ---- 2. FIZIK ----
@@ -916,16 +923,114 @@ function setMode(m){
   k.userData.stand.visible = (m!=='ride');
   vehicles.car.rotation.x=0; vehicles.car.userData.wheels.forEach(w=>w.rotation.y=0);
   hintEl.textContent = m==='ride'
-    ? 'W / ↑ pecut · S / ↓ brek, tahan untuk undur · A D / ← → belok · seret untuk tengok sekeliling'
+    ? 'W / ↑ pecut · S / ↓ brek, tahan untuk undur · A D / ← → belok · M bunyi · seret untuk tengok sekeliling'
     : 'Seret untuk pusing · roda atau cubit untuk zum';
   auto=false; lastInteract=performance.now();
 }
-document.getElementById('btnRide').addEventListener('click',()=>setMode('ride'));
+document.getElementById('btnRide').addEventListener('click',()=>{ initAudio(); setMode('ride'); });
 document.getElementById('btnGarage').addEventListener('click',()=>setMode('garage'));
 const speedNum=document.getElementById('speedNum'), speedUnit=document.getElementById('speedUnit');
 
 // Untuk kamera: beza sudut paling pendek (contoh: 350° ke 10° = +20°, bukan -340°)
 function angleDiff(a,b){ let d=(b-a)%(Math.PI*2); if(d>Math.PI) d-=Math.PI*2; if(d<-Math.PI) d+=Math.PI*2; return d; }
+
+// ---------------- BUNYI ENJIN (Web Audio) ----------------
+// Takde fail audio! Bunyi dijana terus oleh browser guna "oscillator",
+// iaitu penjana gelombang. Macam synthesizer kecil.
+//
+// Macam mana enjin berbunyi? Setiap kali minyak meletup dalam silinder,
+// keluar satu "dush". Enjin 4-lejang: setiap silinder meletup SEKALI
+// setiap DUA pusingan. Jadi:
+//     letupan sesaat = (RPM ÷ 60) × bilangan silinder ÷ 2
+// Kapcai 1 silinder pada 1400 RPM = ~12 letupan sesaat: "pot-pot-pot".
+// Pada 9000 RPM = 75 sesaat: letupan bercantum jadi "ngeeeeng".
+// Kereta 4 silinder = 4 kali lebih banyak letupan, jadi bunyi lebih licin.
+//
+// GEAR: RPM bukan ikut laju terus. Setiap gear ada julat laju sendiri.
+// Bila RPM sampai atas, tukar gear dan RPM jatuh. Itulah bunyi
+// "ngeeng... ngeeng... ngeeng" kapcai pecut.
+//   shift: had laju setiap gear, sebagai pecahan laju maksimum (top dalam SPEC)
+const ENGINE={
+  kapcai:{idle:1400, max:9000, cyl:1, shift:[0.22,0.45,0.7,1.0]},       // 4 gear
+  car:   {idle:850,  max:6500, cyl:4, shift:[0.15,0.3,0.48,0.7,1.0]}    // 5 gear
+};
+let audio=null;   // dicipta bila pemain tekan Tunggang (lihat sebab di bawah)
+let muted=false; try{ muted=localStorage.getItem('kapcai.mute')==='1'; }catch(e){}
+let gear=1, rpm=900;
+const gearEl=document.getElementById('gearNum'), muteBtn=document.getElementById('btnMute');
+
+// Browser TAK BENARKAN laman web berbunyi sebelum pengguna tekan sesuatu
+// (supaya iklan tak menjerit sendiri). Jadi bunyi cuma boleh dimulakan
+// dalam fungsi yang dipanggil oleh tekanan butang.
+function initAudio(){
+  if(audio){ if(audio.ctx.state==='suspended') audio.ctx.resume(); return; }
+  const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+  const ctx=new AC();
+  // Rantai bunyi:  2 oscillator -> penapis (filter) -> kawalan kuat (gain) -> speaker
+  const osc1=ctx.createOscillator(); osc1.type='sawtooth';  // gelombang gergaji: kasar, banyak "gigi"
+  const osc2=ctx.createOscillator(); osc2.type='square';    // gelombang petak: tambah "dengung"
+  const g1=ctx.createGain(); g1.gain.value=0.6;
+  const g2=ctx.createGain(); g2.gain.value=0.25;
+  // Penapis lowpass: buang bunyi nyaring, biar bunyi rendah lalu.
+  // Buka penapis = bunyi lebih garang; tutup = bunyi tenggelam (macam dalam air).
+  const filter=ctx.createBiquadFilter(); filter.type='lowpass'; filter.Q.value=4;
+  const master=ctx.createGain(); master.gain.value=0;
+  osc1.connect(g1); g1.connect(filter);
+  osc2.connect(g2); g2.connect(filter);
+  filter.connect(master); master.connect(ctx.destination);
+  osc1.start(); osc2.start();
+  // Bunyi "dush" langgar: 0.4 saat bunyi rawak (noise) yang makin perlahan
+  const nb=ctx.createBuffer(1,Math.floor(ctx.sampleRate*0.4),ctx.sampleRate), d=nb.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3);
+  audio={ctx,osc1,osc2,filter,master,noise:nb};
+}
+
+function playThud(power){
+  if(!audio || muted) return;
+  const c=audio.ctx, s=c.createBufferSource(), f=c.createBiquadFilter(), g=c.createGain();
+  s.buffer=audio.noise; f.type='lowpass'; f.frequency.value=380; g.gain.value=Math.min(0.9,power*0.06);
+  s.connect(f); f.connect(g); g.connect(c.destination); s.start();
+}
+
+function updateEngine(dt){
+  const e=ENGINE[state.vehicle], top=SPEC[state.vehicle].top;
+  const v=Math.abs(speed)/top;                 // laju sebagai pecahan 0..1
+  // Naik gear bila lepas had gear ni; turun bila jauh bawah had gear sebelum
+  // (0.85 = "ruang" supaya gear tak tukar naik-turun-naik dengan cepat)
+  while(gear<e.shift.length && v>e.shift[gear-1]) gear++;
+  while(gear>1 && v<e.shift[gear-2]*0.85) gear--;
+  const lo= gear===1 ? 0 : e.shift[gear-2], hi=e.shift[gear-1];
+  const frac=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));   // jauh mana dalam gear ni (0..1)
+  // Gear 1 mula dari idle. Gear lain mula dari tengah: sebab tu RPM "jatuh" bila tukar gear.
+  const from= gear===1 ? e.idle : e.idle+(e.max-e.idle)*0.45;
+  let want=from+(e.max-from)*frac;
+  if(input.gas && Math.abs(speed)<0.5) want+=900;      // pulas minyak masa berhenti: "ngeng!"
+  rpm += (want-rpm)*(1-Math.exp(-10*dt));              // jarum RPM tak lompat terus
+
+  gearEl.textContent = Math.abs(speed)<0.3 ? 'N' : String(gear);
+  if(!audio) return;
+  const t=audio.ctx.currentTime;
+  const fire=rpm/60*e.cyl/2;                           // letupan sesaat (lihat formula atas)
+  // setTargetAtTime: tukar nilai secara licin dalam ~0.03 s, elak bunyi "klik"
+  audio.osc1.frequency.setTargetAtTime(fire,t,0.03);
+  audio.osc2.frequency.setTargetAtTime(fire*2.01,t,0.03); // 2.01, bukan 2: sedikit sumbang = bunyi lebih hidup
+  const load=input.gas?1:0.35;                         // pulas minyak = enjin "bekerja keras"
+  let cutoff=250+fire*12*(0.5+load*0.7);
+  if(inLake(vehicleRoot.position.x,vehicleRoot.position.z)) cutoff*=0.3; // dalam air: bunyi tenggelam
+  audio.filter.frequency.setTargetAtTime(cutoff,t,0.05);
+  const vol=(muted||state.mode!=='ride') ? 0 : 0.10+0.12*load+0.05*frac;
+  audio.master.gain.setTargetAtTime(vol,t,0.08);
+}
+
+function setMuted(m){
+  muted=m; try{ localStorage.setItem('kapcai.mute',m?'1':'0'); }catch(e){}
+  muteBtn.textContent=m?'🔇':'🔊'; muteBtn.setAttribute('aria-label',m?'Hidupkan bunyi':'Senyapkan bunyi');
+}
+setMuted(muted);
+muteBtn.addEventListener('click',()=>{ initAudio(); setMuted(!muted); });
+addEventListener('keydown',e=>{ if(e.code==='KeyM' && state.mode==='ride'){ initAudio(); setMuted(!muted); } });
+// Tukar tab / skrin phone tutup: hentikan bunyi
+document.addEventListener('visibilitychange',()=>{ if(!audio) return; if(document.hidden) audio.ctx.suspend(); else audio.ctx.resume(); });
 
 // ---------------- UI ----------------
 const sw=document.getElementById('swatches');
@@ -986,6 +1091,7 @@ function frame(){
     if(!auto && performance.now()-lastInteract>6000 && pointers.size===0) auto=true;
     if(auto && !reduce) state.yaw+=dt*0.18;
   }
+  updateEngine(dt);  // bunyi enjin (senyap sendiri bila bukan mod tunggang)
   // Lampu jalan sebenar (PointLight) mahal, jadi cuma 2. Kita pindahkan
   // dua lampu tu ke tiang yang paling dekat dengan kenderaan. Tiang ada setiap 18 m.
   const lampBase=Math.floor((vehicleRoot.position.x-9)/18)*18+9;
