@@ -88,7 +88,14 @@ body{padding-left:max(16px,var(--sal));padding-right:max(16px,var(--sar));-webki
 .speedo b{font-family:var(--font-display);font-size:44px;font-weight:700;line-height:1;}
 .speedo span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
 .speedo .rev{color:var(--signal);}
-.pads{position:fixed;z-index:3;right:calc(16px + var(--sar));bottom:calc(16px + var(--sab));display:flex;gap:12px;}
+.pads{position:fixed;z-index:3;bottom:calc(16px + var(--sab));display:flex;gap:12px;}
+.pads-pedal{right:calc(16px + var(--sar));}
+.pads-steer{left:calc(16px + var(--sal));}
+.pads-steer .pad{font-size:24px;}
+/* Butang skrin cuma untuk skrin sentuh. Komputer guna papan kekunci. */
+@media (hover:hover) and (pointer:fine){ .pads{display:none!important;} }
+/* Skrin sentuh: meter laju naik atas butang stereng, petunjuk papan kekunci disorok */
+@media (pointer:coarse){ .speedo{bottom:calc(112px + var(--sab))!important;} .hint{display:none;} }
 .pad{width:84px;height:84px;border-radius:50%;border:2px solid var(--line);background:var(--panel);color:var(--text);font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.06em;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
 .pad.gas{background:var(--signal);color:var(--signal-ink);border-color:transparent;}
 .pad.held{transform:scale(.94);filter:brightness(1.2);}
@@ -96,6 +103,8 @@ body.riding .panel{display:none;}
 body:not(.riding) .garage-btn, body:not(.riding) .speedo, body:not(.riding) .pads{display:none;}
 
 @media (max-width:760px){
+  .pad{width:72px;height:72px;}
+  .pads{gap:10px;}
   .speedo{bottom:calc(16px + var(--sab));}
   body.riding .title p{display:none;}
   .panel{top:auto;left:calc(10px + var(--sal));right:calc(10px + var(--sar));bottom:calc(10px + var(--sab));width:auto;max-height:44%;padding:14px;gap:14px;}
@@ -171,7 +180,11 @@ body:not(.riding) .garage-btn, body:not(.riding) .speedo, body:not(.riding) .pad
 <!-- Mod Tunggang: hanya nampak bila sedang bawa kenderaan -->
 <button type="button" class="garage-btn" id="btnGarage">◀ Bengkel</button>
 <div class="speedo" aria-live="off"><b id="speedNum">0</b><span id="speedUnit">km/j</span></div>
-<div class="pads">
+<div class="pads pads-steer">
+  <button type="button" class="pad" data-k="left" aria-label="Belok kiri">◀</button>
+  <button type="button" class="pad" data-k="right" aria-label="Belok kanan">▶</button>
+</div>
+<div class="pads pads-pedal">
   <button type="button" class="pad brake" data-k="brake" aria-label="Brek dan undur">BREK</button>
   <button type="button" class="pad gas" data-k="gas" aria-label="Pecut">PECUT</button>
 </div>
@@ -184,7 +197,7 @@ if(!window.THREE){ document.querySelector('.title p').textContent='Enjin 3D tak 
 
 function start(hot){
 hot = hot || {};
-const state = Object.assign({mode:'garage', x:0, vehicle:'kapcai', paint:0, finish:'gloss', rim:'chrome', time:'dusk', style:'hero', yaw:0.9, pitch:0.28, dist:4.2}, hot);
+const state = Object.assign({mode:'garage', x:0, z:-1.8, heading:0, vehicle:'kapcai', paint:0, finish:'gloss', rim:'chrome', time:'dusk', style:'hero', yaw:0.9, pitch:0.28, dist:4.2}, hot);
 
 // ---------------- renderer / scene ----------------
 const canvas=document.getElementById('view');
@@ -491,7 +504,7 @@ function buildKapcai(){
   part(g,new THREE.CylinderGeometry(0.04,0.04,0.05,10),'dark',-0.9,0.35,0.18,0,0,Math.PI/2+0.12);
   // tongkat sisi (sebelah kiri, -z)
   const stand=rod(g,V(-0.1,0.3,-0.12),V(-0.05,0.02,-0.34),0.014,'dark');
-  g.rotation.x=0.13; // senget atas tongkat sisi
+  g.rotation.x=-0.13; // senget ke kiri, atas tongkat sisi (tongkat di sebelah -z)
   g.position.y=0.02;
   g.userData={target:0.72,shadow:[2.4,1.0],headPos:V(0.62,0.96,0),dist:3.6,wheels,wr,stand};
   return g;
@@ -503,7 +516,7 @@ const shadowTex=glowTex('rgba(0,0,0,.75)','rgba(0,0,0,.45)');
 const blob=new THREE.Mesh(new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false}));
 blob.position.y=0.015; vehicleRoot.add(blob);
 const vehicles={car:buildCar(),kapcai:buildKapcai()};
-vehicles.car.position.z=-1.6; vehicles.kapcai.position.z=-1.8;
+// Kedudukan & arah disimpan pada vehicleRoot (induk), jadi kenderaan sendiri duduk di 0,0,0.
 Object.values(vehicles).forEach(v=>vehicleRoot.add(v));
 const headSpot=new THREE.SpotLight(0xfff0d0,0,26,0.42,0.55,1.4); scene.add(headSpot); scene.add(headSpot.target);
 const headGlows=[new THREE.Sprite(glowMat),new THREE.Sprite(glowMat)]; headGlows.forEach(s=>{s.visible=false;scene.add(s);});
@@ -532,8 +545,8 @@ function applyRim(){
 function applyVehicle(){
   for(const k in vehicles) vehicles[k].visible=(k===state.vehicle);
   const v=vehicles[state.vehicle], u=v.userData;
-  blob.scale.set(u.shadow[0],1,u.shadow[1]); blob.position.set(0,0.015,v.position.z);
-  target.set(vehicleRoot.position.x,u.target,v.position.z);
+  blob.scale.set(u.shadow[0],1,u.shadow[1]); blob.position.set(0,0.015,0);
+  target.set(vehicleRoot.position.x,u.target,vehicleRoot.position.z);
   if(!hot.dist) state.dist=u.dist;
   hot.dist=null;
   countTris();
@@ -596,7 +609,11 @@ canvas.addEventListener('wheel',e=>{e.preventDefault(); state.dist=Math.min(14,M
 // ringkas yang RASA betul. Kebanyakan game lumba buat macam ni.
 //
 // Unit: meter (m) dan saat (s). Laju dalam m/s. Darab 3.6 untuk dapat km/j.
-// Arah depan kenderaan = paksi +x (jalan pun memanjang ikut paksi x).
+// ARAH: kenderaan ada "heading" (sudut hadap, dalam radian).
+//   heading 0      = hadap +x (sepanjang jalan)
+//   heading positif = dah belok ke KIRI (pusing lawan arah jam bila tengok dari atas)
+// Arah depan = (cos heading, 0, -sin heading). Ni trigonometri bulatan biasa:
+// cos bagi "berapa banyak ke depan", sin bagi "berapa banyak ke tepi".
 
 // Spesifikasi setiap kenderaan. Cuba ubah nombor ni dan rasa bezanya!
 //   top   : laju maksimum (m/s). 25 m/s = 90 km/j
@@ -604,24 +621,33 @@ canvas.addEventListener('wheel',e=>{e.preventDefault(); state.dist=Math.min(14,M
 //   brake : kuat brek (m/s setiap saat)
 //   rev   : laju undur maksimum. Kapcai takde gear undur, jadi ni macam
 //           tolak guna kaki: perlahan sangat.
+//   turn  : kuat belok (radian sesaat) masa laju rendah. 1.3 rad ≈ 75° sesaat
 const SPEC={
-  kapcai:{top:25, accel:5,   brake:9,  rev:1.5},
-  car:   {top:33, accel:4,   brake:10, rev:5}
+  kapcai:{top:25, accel:5,   brake:9,  rev:1.5, turn:1.3},
+  car:   {top:33, accel:4,   brake:10, rev:5,   turn:1.0}
 };
 const COAST=1.2;      // bila lepas minyak, laju turun sendiri (geseran + angin)
+const STEER_RATE=4;   // berapa cepat stereng sampai ke hujung (sesaat). Papan kekunci cuma on/off, jadi kita lembutkan.
+const G=9.8;          // graviti (m/s²), untuk kira condong
+const MAX_LEAN=0.7;   // condong paling banyak ≈ 40°
+// Sempadan dunia (sementara, sebelum ada pelanggaran sebenar):
 const ROAD_END=150;   // hujung jalan (meter dari tengah). Jalan panjang 320 m.
-const RIDE_CAM={yaw:-Math.PI/2, pitch:0.2}; // sudut kamera: betul-betul di belakang (-x)
+const SIDE_MIN=-5.9, SIDE_MAX=5.55; // depan kedai (-z) dan tembok laut (+z)
+const KERB=3.6;       // lepas garisan ni dah atas kaki lima (tinggi 0.18 m)
+const RIDE_CAM={pitch:0.2};
 
-const input={gas:false, brake:false};  // keadaan butang SEKARANG
-let speed=0;                           // laju sekarang (m/s). Negatif = undur.
-vehicleRoot.position.x=state.x;
+const input={gas:false, brake:false, left:false, right:false};  // keadaan butang SEKARANG
+let speed=0;    // laju sekarang (m/s). Negatif = undur.
+let steer=0;    // stereng: -1 (kanan penuh) .. 0 (lurus) .. +1 (kiri penuh)
+let lean=0;     // sudut condong kapcai sekarang (radian)
+vehicleRoot.position.set(state.x,0,state.z); vehicleRoot.rotation.y=state.heading;
 
 // ---- 1. INPUT: papan kekunci ----
 // Kita cuma simpan "butang tengah ditekan ke tak". Fizik yang baca nanti.
-const KEYS={KeyW:'gas',ArrowUp:'gas',KeyS:'brake',ArrowDown:'brake'};
+const KEYS={KeyW:'gas',ArrowUp:'gas',KeyS:'brake',ArrowDown:'brake',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
 addEventListener('keydown',e=>{const k=KEYS[e.code]; if(k && state.mode==='ride'){input[k]=true; e.preventDefault();}});
 addEventListener('keyup',e=>{const k=KEYS[e.code]; if(k) input[k]=false;});
-addEventListener('blur',()=>{input.gas=input.brake=false;}); // tukar tab = lepas semua butang
+addEventListener('blur',()=>{for(const k in input) input[k]=false;}); // tukar tab = lepas semua butang
 
 // ---- 1. INPUT: butang skrin (phone) ----
 // Tekan dan tahan = true, lepas jari = false.
@@ -640,7 +666,9 @@ document.querySelectorAll('.pad').forEach(b=>{
 // komputer laju (120 fps) atau phone perlahan (30 fps).
 function updateRide(dt){
   const s=SPEC[state.vehicle];
+  const veh=vehicles[state.vehicle], u=veh.userData;
 
+  // (a) LAJU: pecut, brek, undur
   if(input.gas){
     // Makin dekat laju maksimum, makin kurang pecutan (1 - laju/top).
     // Sebab tu 0→50 km/j cepat, tapi 80→90 km/j lambat. Macam moto betul.
@@ -654,14 +682,55 @@ function updateRide(dt){
     speed = Math.abs(speed)<=drop ? 0 : speed-Math.sign(speed)*drop;
   }
 
-  // Kedudukan baru: jarak = laju × masa
-  let x=vehicleRoot.position.x + speed*dt;
-  if(Math.abs(x)>ROAD_END){ x=Math.sign(x)*ROAD_END; speed=0; } // langgar hujung jalan
-  vehicleRoot.position.x=state.x=x;
+  // (b) STERENG: gerak perlahan-lahan ke arah yang pemain mahu
+  const want=(input.left?1:0)-(input.right?1:0);
+  const step=STEER_RATE*dt;
+  steer += Math.max(-step, Math.min(step, want-steer));
 
-  // Roda berpusing: sudut (radian) = jarak / jejari roda.
-  // Tolak (-=) sebab bergerak ke +x bermaksud roda pusing ikut arah jam.
-  const u=vehicles[state.vehicle].userData;
+  // (c) BELOK: berapa laju kenderaan berpusing (radian sesaat)
+  //   - grip: berhenti = tak boleh pusing di tempat (tayar kena bergolek dulu)
+  //   - (1 + laju×0.08): makin laju, makin susah belok tajam. Tanpa ni,
+  //     belok penuh pada 90 km/j = pusing macam gasing. Tak realistik, tak seronok.
+  //   - Math.sign(speed): bila undur, stereng terbalik (macam kereta betul)
+  const grip=Math.min(1, Math.abs(speed)/3);
+  const yawRate = steer*s.turn/(1+Math.abs(speed)*0.08)*grip*Math.sign(speed);
+  state.heading += yawRate*dt;
+  vehicleRoot.rotation.y=state.heading;
+
+  // (d) GERAK ikut arah hadap: jarak = laju × masa, dipecah jadi x dan z
+  let x=vehicleRoot.position.x + Math.cos(state.heading)*speed*dt;
+  let z=vehicleRoot.position.z - Math.sin(state.heading)*speed*dt;
+  if(Math.abs(x)>ROAD_END){ x=Math.sign(x)*ROAD_END; speed=0; }   // hujung jalan
+  if(z<SIDE_MIN || z>SIDE_MAX){                                    // geser kedai / tembok
+    z=Math.max(SIDE_MIN, Math.min(SIDE_MAX, z));
+    speed -= speed*3*dt;  // bergesel = hilang laju
+  }
+  vehicleRoot.position.x=state.x=x; vehicleRoot.position.z=state.z=z;
+  // naik kaki lima: tinggi 0.18 m (dilembutkan supaya tak "lompat")
+  const groundY = Math.abs(z)>KERB ? 0.18 : 0;
+  vehicleRoot.position.y += (groundY-vehicleRoot.position.y)*(1-Math.exp(-15*dt));
+
+  // (e) CONDONG
+  if(state.vehicle==='kapcai'){
+    // FIZIK SEBENAR! Bila belok, badan ditarik ke luar selekoh (daya emparan).
+    // Penunggang condong ke DALAM supaya graviti lawan tarikan tu.
+    // Sudut seimbang: tan(condong) = laju × kadar pusing / graviti
+    // Makin laju atau makin tajam belok = makin condong.
+    // Tolak (-) sebab condong ke kiri = putaran x negatif dalam three.js.
+    let want=-Math.atan(speed*yawRate/G);
+    want=Math.max(-MAX_LEAN, Math.min(MAX_LEAN, want));
+    lean += (want-lean)*(1-Math.exp(-6*dt));   // lembutkan: badan ambil masa untuk condong
+    veh.rotation.x=lean;
+  } else {
+    // Kereta pula terbalik: badan "goyang" sikit ke LUAR selekoh (spring suspension).
+    const roll=Math.max(-0.06, Math.min(0.06, speed*yawRate/G*0.05));
+    veh.rotation.x += (roll-veh.rotation.x)*(1-Math.exp(-6*dt));
+    // tayar depan kereta (wheels[2], [3]) belok ikut stereng
+    u.wheels[2].rotation.y=u.wheels[3].rotation.y=steer*0.45;
+  }
+
+  // (f) Roda berpusing: sudut (radian) = jarak / jejari roda.
+  // Tolak (-=) sebab bergerak ke depan bermaksud roda pusing ikut arah jam.
   u.wheels.forEach(w=>{w.rotation.z -= speed*dt/u.wr;});
 }
 
@@ -670,13 +739,14 @@ const hintEl=document.getElementById('hint');
 function setMode(m){
   state.mode=m;
   document.body.classList.toggle('riding',m==='ride');
-  speed=0; input.gas=input.brake=false;
+  speed=0; steer=0; lean=0; for(const k in input) input[k]=false;
   // Kapcai: tegak dan naikkan tongkat sisi bila ditunggang
   const k=vehicles.kapcai;
-  k.rotation.x = m==='ride' ? 0 : 0.13;
+  k.rotation.x = m==='ride' ? 0 : -0.13;
   k.userData.stand.visible = (m!=='ride');
+  vehicles.car.rotation.x=0; vehicles.car.userData.wheels.forEach(w=>w.rotation.y=0);
   hintEl.textContent = m==='ride'
-    ? 'W / ↑ pecut · S / ↓ brek, tahan untuk undur · seret untuk tengok sekeliling'
+    ? 'W / ↑ pecut · S / ↓ brek, tahan untuk undur · A D / ← → belok · seret untuk tengok sekeliling'
     : 'Seret untuk pusing · roda atau cubit untuk zum';
   auto=false; lastInteract=performance.now();
 }
@@ -723,11 +793,14 @@ function frame(){
     // "Lerp" = gerak SEBAHAGIAN jarak ke sasaran setiap frame, bukan terus lompat.
     // Hasilnya kamera ketinggalan sikit bila laju (rasa laju!) dan lembut bila berhenti.
     // Formula 1-exp(-k*dt) pastikan rasa sama walaupun fps berbeza. k besar = kejar lebih ketat.
-    const desired=tmpV.set(vehicleRoot.position.x, veh.userData.target, veh.position.z);
+    const desired=tmpV.set(vehicleRoot.position.x, vehicleRoot.position.y+veh.userData.target, vehicleRoot.position.z);
     target.lerp(desired, 1-Math.exp(-10*dt));
     if(pointers.size===0){ // pemain tak seret skrin: kamera balik ke belakang kenderaan
       const k=1-Math.exp(-3*dt);
-      state.yaw  += angleDiff(state.yaw, RIDE_CAM.yaw)*k;
+      // Kamera di BELAKANG kenderaan: sudut kamera = heading - 90°.
+      // Sebab kamera lerp perlahan (k kecil), bila belok kamera tertinggal sikit
+      // dan kau nampak sisi moto. Itu yang bagi rasa "belok".
+      state.yaw  += angleDiff(state.yaw, state.heading-Math.PI/2)*k;
       state.pitch+= (RIDE_CAM.pitch-state.pitch)*k;
       // makin laju, kamera undur sikit ke belakang: nampak lebih jalan di depan.
       // Skrin phone (tegak, sempit) perlukan kamera lebih jauh supaya moto tak penuh skrin.
@@ -749,11 +822,15 @@ function frame(){
   const cp=Math.cos(state.pitch);
   camera.position.set(target.x+Math.sin(state.yaw)*cp*state.dist, target.y+Math.sin(state.pitch)*state.dist, target.z+Math.cos(state.yaw)*cp*state.dist);
   if(camera.position.y<0.15) camera.position.y=0.15;
+  // Jangan bagi kamera tembus masuk dalam kedai (dinding depan kedai di z = -6.25).
+  // Ni cara "murah". Game besar hantar sinar (raycast) dari kenderaan ke kamera
+  // dan tarik kamera ke depan kalau sinar tu langgar dinding.
+  if(riding && camera.position.z<-6.0) camera.position.z=-6.0;
   camera.lookAt(target);
   sky.position.copy(camera.position);
   // lampu depan kenderaan aktif
   const v=vehicles[state.vehicle]; tmpV.copy(v.userData.headPos); v.localToWorld(tmpV);
-  headSpot.position.copy(tmpV); headSpot.target.position.set(tmpV.x+12,0,tmpV.z);
+  headSpot.position.copy(tmpV); headSpot.target.position.set(tmpV.x+Math.cos(state.heading)*12,0,tmpV.z-Math.sin(state.heading)*12); // 12 m ke depan
   headGlows[0].position.copy(tmpV); headGlows[0].scale.setScalar(state.vehicle==='car'?0.8:0.6);
   if(state.vehicle==='car'){ const a=V(2.1,0.69,0.56), b=V(2.1,0.69,-0.56); v.localToWorld(a); v.localToWorld(b); headGlows[0].position.copy(a); headGlows[1].position.copy(b); headGlows[1].scale.setScalar(0.8); headGlows[1].visible=headGlows[0].visible; }
   else headGlows[1].visible=false;

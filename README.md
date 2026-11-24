@@ -35,7 +35,7 @@ Kalau repo ni public, boleh aktifkan **GitHub Pages** (Settings → Pages → Br
 | — | Demo gaya visual: **Bengkel Senja** (`index.html`) | ✅ |
 | 1 | Peta 100 m × 100 m, **satu kapcai boleh dibawa** (fizik + kamera kenderaan) | 🔨 |
 | 1a | Tekan **Tunggang**: bawa depan/belakang atas Jalan Pantai, kamera kejar, meter laju, butang skrin phone | ✅ |
-| 1b | Belok + badan condong | ⬜ |
+| 1b | Belok (A/D, ←/→, butang ◀ ▶) + kapcai condong ikut fizik sebenar, kereta goyang ke luar | ✅ |
 | 1c | Rasa arcade: tala pecutan, geseran, brek | ⬜ |
 | 1d | Peta 100 m × 100 m + kawalan sentuh penuh | ⬜ |
 | 2 | **Multiplayer**: nampak kawan bawa moto (Colyseus, max 15) | ⬜ |
